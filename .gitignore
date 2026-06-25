@@ -1,0 +1,20 @@
+# 数据目录（太大，不入库 — 约 1GB LoRA 权重文件）
+temp_output_dir/
+temp_output_dir_3B_half/
+temp_output_dir_7B_half/
+
+# IDE
+.idea/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# conda
+*.egg-info/
+
+# 实验产物（运行脚本会重新生成）
+_res/*.png
+_res/*.csv
