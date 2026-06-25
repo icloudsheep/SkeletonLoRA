@@ -1,213 +1,144 @@
-
-# SecLoRA
+# SkeletonLoRA
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
 ## Overview
 
-This repository provides the implementation of the paper SecLoRA: Secure Aggregation of Low-Rank Matrix Products via Functional Encryption, the first decentralized framework achieving exact aggregation of LoRA updates with linear communication complexity. The core of SecLoRA is a novel cryptographic primitive: Pairwise Composable Multi-Client Functional Encryption (PC-MCFE). The core of SecLoRA is a novel cryptographic primitive: Pairwise Composable Multi-Client Functional Encryption (PC-MCFE). Unlike traditional functional encryption, which treats ciphertext recombination as an attack, the dual-encryption architecture of PC-MCFE ($\mathsf{Enc}_A, \mathsf{Enc}_B$) is intentionally designed to harness this property. It allows any ciphertexts $\mathsf{ct}_A$ and $\mathsf{ct}_B$ to be arbitrarily paired and evaluated via a functional key to reveal their inner product. This unique property enables secure and decentralized aggregation of matrix products without losing LoRA's linear communication advantages. Furthermore, SecLoRA ensures round-isolated decryption to prevent temporal leakage without extra interaction. Evaluation shows that SecLoRA is practical for cross-silo deployments.
+SkeletonLoRA is a **CKKS-based low-rank skeleton decryption** framework for federated LoRA aggregation. Instead of decrypting the entire aggregated update matrix $\Delta W \in \mathbb{R}^{d \times d}$, the server decrypts only a small subset of rows and columns (the "skeleton"), then reconstructs the full matrix via **CUR decomposition**:
 
+$$\Delta W_{\text{rec}} = C_r \cdot M_r^{-1} \cdot R_r$$
 
-<table>
-  <tr>
-    <td width="100%"><img src="_res/Comparison_of_Privacy_of_Preserving_Aggregation_Paradigms.png" alt="Comparison Overview"></td>
-  </tr>
-<tr>
-    <td width="100%">Comparison of different paradigm</td>
-  </tr>
-  <tr>
-    <td width="100%"><img src="_res/Client_Network_Traffic_Comparison.png" alt="Network Comparison"></td>
-  </tr>
-  <tr>
-    <td width="100%">Network Traffic of SecLoRA & Other Methods (Lower is Better)</td>
-  </tr>
-  <tr>
-    <td width="100%"><img src="_res/overlap.png" alt="Encrytion Overlap Comparison">
-      <embed>
-    </td>
-  </tr>
-  <tr>
-    <td width="100%">Encryption Overlap of SecLoRA & Other Methods (Higher is Better)</td>
-  </tr>
-</table>
+where $C_r \in \mathbb{R}^{d \times r}$ are $r$ decrypted columns, $R_r \in \mathbb{R}^{r \times d}$ are $r$ decrypted rows, and $M_r \in \mathbb{R}^{r \times r}$ is their intersection block. This yields significant speedup and communication savings proportional to $d/r$ — for a 3200×3200 matrix, skeleton decryption with $r=16$ achieves **>100× speedup** while maintaining relative error below $10^{-4}$.
 
-## Introduction
+The framework serves as the **CKKS homomorphic encryption baseline** for the SecLoRA paper, benchmarking homomorphic aggregation of LoRA updates against the PC-MCFE cryptographic scheme.
 
-SecLoRA consists of the following three key components:
+## Key Concepts
 
-### 1. Parameter Sensitivity Calculation
+### Low-Rank Skeleton Decryption
 
-To avoid the substantial computational cost of evaluating loss variations with forward passes, we use the channel sensitivity at the structural level using the weight magnitudes. Specifically, for the LoRA matrix $\mathbf{A}$, we evaluate the importance of each column (corresponding to input features); for the LoRA matrix $\mathbf{B}$, we evaluate the importance of each row (corresponding to output features). Let $v$ represent a specific column vector in matrix $\mathbf{A}$ or a row vector in matrix $\mathbf{B}$. Its sensitivity $\Omega(v)$ is defined by its L2-norm: 
+In federated LoRA fine-tuning, each client $i$ holds factor matrices $B_i \in \mathbb{R}^{d \times R}$ and $A_i \in \mathbb{R}^{R \times d}$ (where $R \ll d$ is the LoRA rank). The local update is $\Delta W_i = B_i A_i$, and the server aggregates:
 
- 
-$\Omega(v) = \lVert v \rVert_2 = \sqrt{\sum_{i=1}^{R} v_i^2}  $
+$$\Delta W = \sum_{i=1}^{N} \Delta W_i$$
 
-where $R$ is the intrinsic rank of the LoRA layers. The rows or columns with the lowest sensitivity scores $\Omega(v)$ are considered insignificant and are deterministically pruned (zeroed out).
+Since each $\Delta W_i$ has rank at most $R$, the aggregate has rank at most $N \cdot R$. For $N\!=\!4$ clients with $R\!=\!4$, $\text{rank}(\Delta W) \le 16 \ll 3200$. This low-rank structure means only $r$ linearly independent rows and columns are needed for exact reconstruction.
 
-Relevant code:
+### Three Index Selection Strategies
 
-- [`client/sensitivity.py`](./client/sensitivity.py): Client-side tool for row and column sensitivity calculation, pruning, and statistical tracking. It computes the L2-norm for vectors in LoRA A/B matrices, zeros out the lowest sensitivity features based on a specified threshold, and logs the resulting sparsity without requiring client-server negotiation.
+| Strategy | Plaintext Access | Description |
+|----------|:---:|------|
+| **mincond** (default) | ✓ | Randomly samples 20,000 candidate $(I_r, J_r)$ pairs, picks the one minimizing $\text{cond}(M_r)$ |
+| **leverage** | ✓ | Computes row/column leverage scores from the top-$r$ singular vectors of $\Delta W$ |
+| **uniform** | ✗ | Evenly-spaced indices — privacy-preserving, no plaintext access needed |
 
+### Two Pipelines
 
+- **Pipeline A — Homomorphic Aggregation**: Each client CKKS-encrypts rows and columns of $\Delta W_i$ locally; the server adds ciphertexts homomorphically. Simulates a real federated deployment.
+- **Pipeline B — Plaintext Shortcut**: Computes $\Delta W$ in plaintext first, then encrypts. Serves as a control to isolate CKKS encryption noise from homomorphic aggregation noise.
 
-### 2. Zero Encryption Optimization
-
-After sensitivity pruning, a large fraction of row/column vectors become all-zero. PC-MCFE exploits this sparsity via a three-layer zero-skip architecture:
-
-**Layer 1 — Structural Sparsity.** The pruning threshold grows progressively across rounds (configured in [`ENCRYPTION_THRESHOLD(round_idx)`](utils/constants.py:45)), zeroing up to ~85% of vectors pre-encryption.
-
-**Layer 2 — Client-Side Zero Skip.** In [`PC_MCFE_Client.encrypt()`](MCFE/mcfe.py:235), zero vectors skip the expensive iFE operations (each $O(R)$ exponentiations in $G_1$ or $G_2$) and store only a lightweight `is_zero` flag plus a DSum mask. For [`keygen()`](MCFE/mcfe.py:271), zero vectors only generate a lightweight non-hiding key: 
-
-> if $\mathbf{b}_i = 0$:
->
-> $$
-> ct_{\ell_b,i,b}^{(q)} := \langle (0^{R_i}, 0^{R_i}, t_{\ell_b,q}, 0), \mathbf{s}_1 \rangle \in \mathbb{Z}_p
-> $$
->
-> with an `is_zero` flag, where $\mathbf{s}_1$ is the first $R_i$ element of $ek_i^{(q)}$.
-
-**Layer 3 — Server-Side Zero Skip.** In [`PC_MCFE_Server.decrypt_and_aggregate()`](MCFE/mcfe.py:337), cells where either $\mathsf{ct}_v$ or $\mathsf{sk}_u$ is zero bypass the full pairing (each costs $2R+4 \approx 12$ pairings at $R=4$), yielding quadratic speedup as sparsity increases.
-
-> **A special case:**
-> If $ct_{\ell_b,i,b}^{(q)}$ is a zero encryption, and $ct_{\ell_a,i,a}^{(q)} = (c_1, c_2[0:2R_i+2])$ is not a zero encryption:
->
-> $$
-> \mathsf{Dec}(ct_{\ell_a,i,a}^{(q)}, ct_{\ell_b,i,b}^{(q)}) = \langle (0^{R_i}, 0^{R_i}, t_{\ell_b,q}, 0), c_2[1:2R_i+2] \rangle + c_2[0] \cdot ct_{\ell_b,i,b}^{(q)}
-> $$
-
-**Communication Savings.** A zero ciphertext stores only a 1-byte flag + DSum mask (~30 bytes), versus ~400 bytes for a non-zero ciphertext with MNT224 group elements — a $>10\times$ reduction per entry. The cumulative speedup for aggregation (pairing) is $\approx 1/(1-\tau)^2$, reaching $\sim 44\times$ at $\tau=0.85$.
-
-Relevant code:
-- [`client/sensitivity.py`](client/sensitivity.py): L2-norm sensitivity pruning
-- [`MCFE/mcfe.py`](MCFE/mcfe.py): `_encrypt_zero()` / `_keygen_zero()` (lines 228–233), server-side `is_zero` gating (line 363)
-- [`utils/constants.py`](utils/constants.py): `ENCRYPTION_THRESHOLD(round_idx)` sparsity schedule
-
-### 3. PC-MCFE: Client Encryption & Server Aggregation
-
-SecLoRA's core is **PC-MCFE**, a dual-encryption scheme securely computing inner-product aggregation of LoRA matrices without exposing individual updates.
-
-#### Client-Side Encryption
-
-Each client $i$ holds LoRA matrices $\mathbf{A}_i \in \mathbb{Z}^{R \times d_\text{in}}$ and $\mathbf{B}_i \in \mathbb{Z}^{d_\text{out} \times R}$, quantized by factor $F=1000$.
-
-**Encrypt $\mathbf{A}_i$ (column-wise).** For column $v$, an extended vector $\hat{\mathbf{a}}_v \in \mathbb{Z}_p^{2R+2}$ is constructed and encrypted via the iFE core:
-
-$$\hat{\mathbf{a}}_v = [\mathbf{a}_v \;\|\; \mathbf{0}_R \;\|\; x_i \;\|\; 0], \quad x_i \xleftarrow{\$} \mathbb{Z}_p$$
-
-The ciphertext is $\mathsf{ct}_v$ = $(c_1, \mathbf{c}_2)$, with a DSum mask computed in $\mathbb{Z}_p$: $\mathsf{dsum}_v = x_i + \sum_{j \neq i} \mathsf{PRF}_{s_{ij}}(\mathsf{label})$.
-
-**Generate key for $\mathbf{B}_i$ (row-wise).** For row $u$, the client constructs $\hat{\mathbf{b}}_u = [\mathbf{b}_u \;\|\; \mathbf{0}_R \;\|\; t_{\mathsf{label}} \;\|\; 0] \in \mathbb{Z}_p^{2R+2}$ and generates $\mathsf{sk}_u = (k_1, \mathbf{k}_2)$ via the iFE core. Zero vectors skip the full iFE operation entirely.
-
-#### Server-Side Aggregation
-
-The server homomorphically pairs all clients' ciphertexts and keys without decryption. For each cell $(u, v)$:
-
-$$\mathsf{gt}_{u,v} = \prod_{i=1}^{N} \mathsf{Pair}\bigl(\mathsf{sk}_u^{(i)}, \mathsf{ct}_v^{(i)}\bigr) \cdot g_T^{-t_{\mathsf{label}} \cdot \sum_i \mathsf{dsum}_v^{(i)}} = g_T^{\sum_{i=1}^{N} \langle \mathbf{b}_u^{(i)}, \mathbf{a}_v^{(i)} \rangle}$$
-
-The inner product is recovered via BSGS (baby-step giant-step) in $G_T$: $\Delta\mathbf{W}[u,v] = \mathrm{BSGS}(g_T, \mathsf{gt}_{u,v}, D_{\max})$, then dequantized by $\frac{1}{F^2 \cdot N}$. The server learns only the aggregated sum — individual matrices remain hidden under the DDH assumption.
-
-Relevant code:
-- [`MCFE/mcfe.py`](MCFE/mcfe.py): Core iFE, DSum, PC-MCFE client/server primitives
-- [`client/mcfe_client.py`](client/mcfe_client.py): Client-side encryption orchestration
-- [`server/mcfe_server.py`](server/mcfe_server.py): Server-side aggregation & binary protocol
-
-
-## Data Flow
-
-The following diagram illustrates the complete PC-MCFE workflow orchestrated by `main.py`:
+## Project Structure
 
 ```
-main.py
-├─ MCFEServerContext(n_clients, STANDARD_RANK)
-│   └─ SystemCoordinator.global_setup() → PKI, DSum keys
-│
-├─ ClientPart(mcfe_context, ...)
-│   ├─ context_blob = mcfe_context.serialize_client_context(cid)  ← bytes
-│   └─ client.encrypt_adapters(final_path, context_blob=blob)
-│       └─ encrypt_with_pc_mcfe(...)  → client_{id}_pc_mcfe.bin
-│
-└─ ServerPart(mcfe_context, ...)
-    └─ server.aggregate_mi_dmcfe()
-        └─ mcfe_context.aggregate(round_idx, round_prefix)
-            ├─ parse client_{id}_pc_mcfe.bin
-            ├─ PC_MCFE_Server.decrypt_and_aggregate(...)
-            └─ save server_aggregated_mi_dmcfe_delta_w.pth
+SkeletonLoRA/
+├── ckks_skeleton_test.py                          # Main experiment: 3200×3200, 4 clients
+├── Low-Rank Skeleton Decryption Correctness Test.md # Formal test documentation
+├── environment.yaml                                 # Conda environment (lora_fe, py3.10)
+├── CKKS/
+│   ├── ckks.py                                      # CKKS encrypt/decrypt helpers (TenSEAL)
+│   └── gen_ckks_key.py                              # CKKS key generation
+├── _scripts/
+│   ├── paper_table_2_CKKS.py                        # CKKS baseline for Table 2 (hybrid A-col encryption)
+│   ├── paper_table_2_CKKS_Packed.py                  # Packed CKKS variant (merged into above)
+│   └── paper_table_3_CKKS.py                        # Full CKKS B×A pipeline for Table 3
+├── _res/                                            # Experiment results (CSV + PNG charts)
+│   ├── ckks_skeleton_results.{csv,png}              # Pipeline A vs B comparison
+│   ├── ckks_strategy_comparison.{csv,png}           # mincond vs leverage vs uniform
+│   ├── demo_10x4_results.{csv,png}                  # 2-client 10×4 demo
+│   └── demo_float_vs_int.{csv,png}                  # CKKS encoding precision test
+└── temp_output_dir/                                 # LoRA adapter weights (gitignored)
+    └── client_{0..49}_output/final_lora/
 ```
 
-**Key modules:**
+## Installation
 
-| Module | File | Role |
-|--------|------|------|
-| `MCFEServerContext` | `server/mcfe_server.py` | PKI setup, context blob serialization, binary parsing, PC-MCFE aggregation |
-| `encrypt_with_pc_mcfe` | `client/mcfe_client.py` | Deserializes context blob, reconstructs `PC_MCFE_Client`, encrypts LoRA A + keygen B |
-| `Server` | `server/server.py` | Thin orchestration layer, delegates `aggregate_mi_dmcfe()` to `MCFEServerContext` |
-| `Client` | `client/client.py` | LoRA training, pruning, SVD residuals, calls `encrypt_with_pc_mcfe()` with context blob |
+### Prerequisites
 
-## How to use
+- Conda (Miniconda or Anaconda)
+- CUDA Toolkit 12.8+ (for GPU acceleration)
 
-### 1. Deployment
-
-#### Clone the github repository
+### Setup
 
 ```shell
-git clone https://github.com/....XXXX
-cd SecLoRA
+git clone https://github.com/icloudsheep/SkeletonLoRA.git
+cd SkeletonLoRA
+
+# Create and activate the conda environment
+conda env create -f environment.yaml
+conda activate lora_fe
 ```
 
-#### Create running environment
+The environment includes:
+- **TenSEAL 0.3.16** — CKKS homomorphic encryption
+- **PyTorch 2.9.1** — GPU-accelerated tensor operations
+- **HuggingFace ecosystem** — safetensors, peft, transformers
+- **charm-crypto** — pairing-based cryptography (for PC-MCFE)
+- **matplotlib, seaborn** — visualization
 
-Then, you can run `chmod +x deployment.sh && deployment.sh` to deploy the relevant runtime environment with one click. If you encounter any issues, you can also try manually entering the commands below.
+### Generate CKKS Keys
 
 ```shell
-conda env create -f environment.yml
-conda activate sec-lora
-
-git clone https://github.com/EleutherAI/lm-evaluation-harness
-cd lm-evaluation-harness
-pip install -e .
+python CKKS/gen_ckks_key.py
 ```
 
-### 2. Run SecLoRA
+## Usage
 
-#### Federated Learning
-
-##### By Shell (Recommanded)
-
-This approach will save log to `./run_log` so that we can debug easily.
+### Main Experiment (3200×3200, 4 clients)
 
 ```shell
-chmod +x ./run.sh && ./run.sh
+python ckks_skeleton_test.py
 ```
 
-##### By Python
+This runs the full homomorphic aggregation pipeline with 4 clients, loads pre-trained LoRA adapters from `temp_output_dir/`, tests skeleton ranks $r \in \{2,3,\dots,16\}$, and produces comparison charts under `_res/`.
+
+### Demo Mode (10×10, 2 clients)
 
 ```shell
-python main.py
+python ckks_skeleton_test.py --demo
 ```
 
-#### Evaluation
+A quick sanity check with randomly generated 10×4 LoRA matrices — runs in seconds without pre-trained weights.
+
+### Float vs Integer Precision Comparison
 
 ```shell
-chmod +x ./eval.sh && ./eval.sh ./models/open_llama_3b_v2 ./temp_output_dir/client_output/mi_dmcfe_model
+python ckks_skeleton_test.py --demo-compare
 ```
 
-## Benchmark
+Compares reconstruction error between floating-point and integer-valued matrices with identical structure, isolating CKKS encoding precision (~$2^{-40}$) from encryption noise.
 
-Some of the data and images in the paper can be run with a single click using the script below:
+### Paper Scripts
+
+Individual benchmark scripts under `_scripts/` can be run independently:
 
 ```shell
-chmod +x ./run_all_scripts.sh && ./run_all_scripts.sh
+# Table 2: CKKS hybrid encryption benchmarks (traffic + timing)
+python _scripts/paper_table_2_CKKS.py
+
+# Table 3: Full CKKS B×A pipeline simulation
+python _scripts/paper_table_3_CKKS.py
 ```
 
-All paper experiment scripts under [`_scripts/`](_scripts/) can be run at once via [`run_all_scripts.sh`](run_all_scripts.sh).
+## Results
 
-- [`paper_figure_3.py`](_scripts/paper_figure_3.py) — Reads per-round averaged final loss from `experiment_logs/loss_final_*.csv` and plots the loss curve (Figure 3).
-- [`paper_figure_4_5.py`](_scripts/paper_figure_4_5.py) — Extracts LoRA A/B from client safetensors, selects top rows/cols by L2 norm, and renders a heatmap of cross-client selection overlap (Figures 4 & 5).
-- [`paper_figure_6.py`](_scripts/paper_figure_6.py) — Compares SecLoRA vs. SHE-LoRA in terms of the fraction of encrypted elements as the number of clients grows (Figure 6).
-- [`paper_table_2.py`](_scripts/paper_table_2.py) — Orchestrates Table 2: iterates over sparsity ratios, invokes the MCFE evaluator, and writes per-stage timing & traffic to `NetworkTrafficTest_Results.csv`.
-- [`paper_table_2_MCFE.py`](_scripts/paper_table_2_MCFE.py) — SecLoRA (MCFE) evaluator for Table 2. Extracts LoRA matrices, applies L2-norm sparsification, computes residuals, runs PC-MCFE encryption, and performs SVD compression on residuals.
-- [`paper_table_2_CKKS.py`](_scripts/paper_table_2_CKKS.py) — CKKS baseline evaluator for Table 2. Encrypts the most important A columns via CKKS, sends the rest in plaintext, and measures upload/download traffic and encryption time.
-- [`paper_table_2_CKKS_Packed.py`](_scripts/paper_table_2_CKKS_Packed.py) — CKKS packed variant for Table 2. Packs multiple columns into a single ciphertext via SIMD; also accounts for one-time Galois/Relin key upload.
-- [`paper_table_3_CKKS.py`](_scripts/paper_table_3_CKKS.py) — Full CKKS pipeline simulation for Table 3: client-side CKKS encryption, network transfer, server-side parallel homomorphic B×A multiplication + aggregation, and client-side decryption.
-- [`paper_table_3_MCFE.py`](_scripts/paper_table_3_MCFE.py) — Full SecLoRA (MCFE) pipeline simulation for Table 3. Client-side extraction, sparsification, PC-MCFE encryption, and SVD residual compression; server-side binary parsing, pairing-based aggregation, BSGS discrete-log decryption, residual merging, and final SVD reconstruction.
+Representative results from the main experiment (3200×3200, 4 clients):
 
+| Metric | Full Decryption | Skeleton ($r\!=\!16$) | Improvement |
+|--------|:---:|:---:|:---:|
+| Decryption time | ~5 s | ~0.04 s | **>100×** |
+| Download data | ~82 MB | ~800 KB | **~99%** |
+| Relative error ($\varepsilon$) | $10^{-10}$ | $10^{-5}$ | within $\tau = 10^{-4}$ |
+
+The skeleton reconstruction error drops sharply as $r$ approaches the true rank of $\Delta W$ (typically 12–16 for 4 clients with $R=4$). All three index selection strategies achieve $\varepsilon < 10^{-4}$ once $r \ge \text{rank}(\Delta W)$.
+
+## License
+
+This project is licensed under the Apache License 2.0 — see [LICENSE](LICENSE) for details.
