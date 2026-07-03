@@ -33,12 +33,30 @@ def relative_error(rec, ref):
     return float(d / n) if n > 0 else float("inf")
 
 
-def create_ckks_context():
+def create_ckks_context(galois=True):
+    """创建私有 CKKS context（含 secret/public/relin key）。
+
+    galois: 是否生成 galois 旋转密钥。逐元素 ct×ct（如 Pipeline C）不需要旋转，
+            可传 False 省去生成开销与体积；需要 rotate 的路径保持 True。
+    """
     ctx = ts.context(ts.SCHEME_TYPE.CKKS, poly_modulus_degree=POLY_MODULUS_DEGREE,
                      coeff_mod_bit_sizes=COEFF_MOD_BIT_SIZES)
     ctx.global_scale = GLOBAL_SCALE
-    ctx.generate_galois_keys()
+    if galois:
+        ctx.generate_galois_keys()
     return ctx
+
+
+def make_public_context(ctx):
+    """从私有 context 派生去掉私钥的公开 context。
+
+    公开 context 保留 public/relin/galois 等 evaluation key，可加密、可同态
+    乘加，但 is_private()==False、无法解密。分发给客户端与服务端用它，私钥
+    只留在解密方——这是联邦部署里 HE 隐私保证赖以成立的密钥边界。
+    """
+    pub = ctx.copy()
+    pub.make_context_public()
+    return pub
 
 
 def encrypt_vectors(vecs, context, tag=""):

@@ -24,7 +24,7 @@ CKKS Skeleton Decryption — 模块化流水线测试
 
 import argparse
 from ckks_demo import demo_mode, demo_float_vs_int
-from ckks_main import main, main_partial
+from ckks_main import main, main_partial, main_factor_mult
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="CKKS Skeleton Decryption Test")
@@ -34,6 +34,8 @@ if __name__ == "__main__":
                    help="Float vs integer comparison")
     p.add_argument("--partial", action="store_true",
                    help="Partial encryption scan (1%..100%)")
+    p.add_argument("--cipher-mult", action="store_true",
+                   help="Pipeline C: server-side cipher factor multiplication")
     args = p.parse_args()
     if args.demo_compare:
         demo_float_vs_int()
@@ -41,5 +43,7 @@ if __name__ == "__main__":
         demo_mode()
     elif args.partial:
         main_partial()
+    elif args.cipher_mult:
+        main_factor_mult()
     else:
         main()

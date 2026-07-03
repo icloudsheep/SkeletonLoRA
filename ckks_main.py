@@ -8,12 +8,14 @@ import os, csv
 from ckks_config import (N_CLIENTS, N_DIM, RANK, R_VALUES,
                           POLY_MODULUS_DEGREE, COEFF_MOD_BIT_SIZES, GLOBAL_SCALE,
                           TAU, RES_DIR, PARTIAL_RATIOS)
-from ckks_utils import load_weights, create_ckks_context
+from ckks_utils import load_weights, create_ckks_context, make_public_context
 from ckks_indices import (select_indices_mincond, select_indices_leverage,
-                           select_indices_uniform, select_encrypt_indices)
+                           select_indices_uniform, select_encrypt_indices,
+                           uniform_index_union)
 from ckks_pipelines import (pipeline_homomorphic_aggregation,
                             pipeline_plaintext_shortcut,
-                            pipeline_partial_encryption)
+                            pipeline_partial_encryption,
+                            pipeline_homomorphic_factor_mult)
 from ckks_compare import run_decryption_comparison
 from ckks_plot import (plot_results, plot_strategy_comparison,
                        save_csv, save_strategy_csv)
@@ -196,3 +198,66 @@ def main_partial():
         w.writeheader(); w.writerows(detail_rows)
     print(f"  CSV → {csv_p}")
     print("\nPartial encryption scan done.")
+
+
+def main_factor_mult():
+    """流水线 C：客户端只发全加密 A/B，服务端密文乘法 + 聚合 + 平均 + 骨架加速。"""
+    print("=" * 70)
+    print("  CKKS Skeleton — Server-side Cipher Factor Multiplication (Pipeline C)")
+    print("=" * 70)
+    print(f"  [客户端仅上传加密 A/B] {N_CLIENTS} clients, rank={RANK}, ΔW={N_DIM}×{N_DIM}")
+    print(f"  CKKS: poly_modulus_degree={POLY_MODULUS_DEGREE}, scale=2^{int(np.log2(GLOBAL_SCALE))}")
+
+    # 加载（注意：参考矩阵用密文域同款的均值 ΔW_mean = (Σ B_i A_i)/N）
+    print("\n[1] Loading weights ...")
+    Bs, As_ = load_weights(N_CLIENTS)
+    print(f"  Loaded {len(Bs)} clients, B={Bs[0].shape}, A={As_[0].shape}")
+    delta_w_mean = np.zeros((N_DIM, N_DIM), dtype=np.float64)
+    for Bi, Ai in zip(Bs, As_):
+        delta_w_mean += Bi.astype(np.float64) @ Ai.astype(np.float64)
+    delta_w_mean /= N_CLIENTS
+    true_rank = np.linalg.matrix_rank(delta_w_mean)
+    print(f"  ΔW_mean rank={true_rank}")
+
+    # CKKS：分离公私钥边界
+    #   secret_ctx —— 持私钥，只用于最后的解密方（可信第三方/聚合器之外）
+    #   public_ctx —— 去私钥，分发给客户端(加密)与服务端(同态乘加)，无法解密
+    # galois=False：Pipeline C 全程逐元素 ct×ct + 广播标量，不做旋转，省去 galois key
+    print("\n[2] Creating CKKS context (secret + derived public) ...")
+    secret_ctx = create_ckks_context(galois=False)
+    public_ctx = make_public_context(secret_ctx)
+    print(f"  secret.is_private()={secret_ctx.is_private()}, "
+          f"public.is_private()={public_ctx.is_private()}  (max_slots={POLY_MODULUS_DEGREE//2})")
+
+    # 骨架索引：uniform 的 r-sweep 并集（客户端事先可知，无需明文）
+    I_union, J_union = uniform_index_union(N_DIM, R_VALUES)
+    print(f"\n[3] Skeleton index union (uniform): "
+          f"{len(I_union)} rows + {len(J_union)} cols over r={R_VALUES}")
+
+    # Pipeline C —— 客户端加密 + 服务端同态运算，全程用公开 context（无私钥）
+    print("\n" + "=" * 70)
+    print("  PIPELINE C: Server-side Cipher Multiplication (secure, factor-only)")
+    print("=" * 70)
+    t0 = time.time()
+    enc_cols, enc_rows = pipeline_homomorphic_factor_mult(
+        Bs, As_, public_ctx, N_DIM, I_union, J_union, N_CLIENTS, RANK)
+    t_c = time.time() - t0
+
+    # 解密阶段 —— 唯一使用私钥 context 的地方
+    strategies = {"uniform": lambda dw, r: select_indices_uniform(N_DIM, N_DIM, r)}
+    all_c, eps_c = run_decryption_comparison(
+        delta_w_mean, enc_cols, enc_rows, secret_ctx,
+        "Pipeline C", true_rank, N_DIM, strategies=strategies, skip_full=True)
+
+    # Summary
+    print(f"\n{'='*70}\n  SUMMARY\n{'='*70}")
+    print(f"  Pipeline C: {t_c:.1f}s (cipher mult + aggregate + average)")
+    print(f"  Skeleton (uniform) errors:")
+    for rr in all_c["uniform"]:
+        status = "✓" if rr["error"] < TAU else "✗"
+        print(f"    r={rr['r']:2d}: ε={rr['error']:.2e} {status}  "
+              f"t_skel={rr['time_skeleton']:.3f}s")
+
+    save_strategy_csv(all_c, eps_c, "ckks_pipelineC_results.csv")
+    plot_strategy_comparison(all_c, eps_c, true_rank, "ckks_pipelineC_results.png")
+    print("\nPipeline C done.")

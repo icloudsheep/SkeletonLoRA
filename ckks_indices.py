@@ -42,6 +42,20 @@ def select_indices_uniform(m, n, r):
     return I_r, J_r, float("inf")
 
 
+def uniform_index_union(dim, r_values):
+    """r 扫描下所有 uniform 骨架索引的并集（行/列各一份）。
+
+    供 Pipeline C 预先确定服务端需密文计算哪些行列：因 uniform 索引客户端事先
+    可知，取并集即覆盖整个 r-sweep 所需的全部骨架位置。返回 (I_union, J_union)。
+    """
+    rows, cols = set(), set()
+    for r in r_values:
+        I_r, J_r, _ = select_indices_uniform(dim, dim, r)
+        rows.update(int(i) for i in I_r)
+        cols.update(int(j) for j in J_r)
+    return np.array(sorted(rows)), np.array(sorted(cols))
+
+
 # ── 部分加密索引 ──────────────────────────────────────────────────────────
 
 def select_encrypt_indices(delta_w, ratio):

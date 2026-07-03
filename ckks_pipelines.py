@@ -125,3 +125,91 @@ def pipeline_partial_encryption(B_list, A_list, ctx, dim, encrypt_ratio,
     print(f"  Serialized: {bc/1024/1024:.1f}(col)+{br/1024/1024:.1f}(row) MB, "
           f"{time.time()-t0:.2f}s")
     return enc_cols_ser, enc_rows_ser, agg_plain_cols, agg_plain_rows
+
+
+def pipeline_homomorphic_factor_mult(B_list, A_list, ctx, dim, I_idx, J_idx,
+                                     n_clients, rank):
+    """流水线 C：客户端只发全加密 A/B 因子，服务端密文乘法 + 聚合 + 平均。
+
+    客户端不再本地计算 ΔW_i = B_i A_i，也不做任何聚合：只把 A_i、B_i 加密上传。
+    服务端用外积分解在密文域重建骨架（仅 I_idx 行 + J_idx 列）：
+
+        ΔW_i = Σ_c b_c ⊗ a_c   (b_c=B_i[:,c], a_c=A_i[c,:], c=0..rank-1)
+        列 j: ΔW_i[:,j] = Σ_c A_i[c,j]·b_c
+        行 k: ΔW_i[k,:] = Σ_c B_i[k,c]·a_c
+
+    其中加密标量 A_i[c,j]/B_i[k,c] 由客户端以"全槽广播"形式加密上传，服务端只做
+    逐元素 ct×ct 乘法（无需 galois 旋转）。跨客户端密文相加后 ×(1/N) 得密文均值。
+
+    安全边界：本函数模拟客户端 + 服务端，二者都**不应持有私钥**。传入的 ctx 必须是
+    公开 context（make_public_context 派生，is_private()==False）——它能加密、能同态
+    乘加但无法解密。私钥只留在调用方的解密阶段。下面的断言强制这一边界，防止真实
+    部署时误把带私钥的 context 交给服务端、导致服务端可直接解密、HE 隐私保证归零。
+
+    返回 (enc_cols, enc_rows): list[bytes|None] × dim，骨架位置为密文，其余 None
+    （格式与部分加密一致，可直接喂给 run_decryption_comparison）。
+    """
+    assert not ctx.is_private(), \
+        "Pipeline C 的 ctx 必须是公开 context（无私钥）：客户端/服务端不得持有私钥"
+
+    print(f"\n  Homomorphic factor multiplication "
+          f"({n_clients} clients, rank={rank}, dim={dim})")
+    print(f"  Skeleton: {len(I_idx)} rows + {len(J_idx)} cols (cipher ct×ct)")
+
+    agg_cols = {j: None for j in J_idx}   # 服务端：跨客户端聚合的密文列
+    agg_rows = {k: None for k in I_idx}
+    t_enc, t_mul, t_add = 0.0, 0.0, 0.0
+
+    for ci, (Bi, Ai) in enumerate(zip(B_list, A_list)):
+        Bi = Bi.astype(np.float64)        # (dim, rank)
+        Ai = Ai.astype(np.float64)        # (rank, dim)
+
+        # ── 客户端本地：仅加密 A/B 因子（向量打包 + 广播标量），不做乘法/聚合 ──
+        t0 = time.time()
+        encB = [ts.ckks_vector(ctx, Bi[:, c].tolist()) for c in range(rank)]   # b_c
+        encA = [ts.ckks_vector(ctx, Ai[c, :].tolist()) for c in range(rank)]   # a_c
+        # 广播标量：列需 A_i[c,j]，行需 B_i[k,c]
+        bcast_A = {j: [ts.ckks_vector(ctx, [Ai[c, j]] * dim) for c in range(rank)]
+                   for j in J_idx}
+        bcast_B = {k: [ts.ckks_vector(ctx, [Bi[k, c]] * dim) for c in range(rank)]
+                   for k in I_idx}
+        t_enc += time.time() - t0
+
+        # ── 服务端：密文域外积重建骨架 + 跨客户端聚合 ──
+        t0 = time.time()
+        for j in J_idx:
+            col = encB[0] * bcast_A[j][0]
+            for c in range(1, rank):
+                col += encB[c] * bcast_A[j][c]
+            if agg_cols[j] is None: agg_cols[j] = col
+            else: agg_cols[j] += col
+        for k in I_idx:
+            row = encA[0] * bcast_B[k][0]
+            for c in range(1, rank):
+                row += encA[c] * bcast_B[k][c]
+            if agg_rows[k] is None: agg_rows[k] = row
+            else: agg_rows[k] += row
+        t_mul += time.time() - t0
+
+        if ci == 0:
+            print(f"    Client 0: enc {2*rank} factor vecs + "
+                  f"{(len(I_idx)+len(J_idx))*rank} bcast scalars")
+
+    # ── 服务端：密文域平均 ×(1/N) ──
+    t0 = time.time()
+    inv_n = 1.0 / n_clients
+    for j in J_idx: agg_cols[j] *= inv_n
+    for k in I_idx: agg_rows[k] *= inv_n
+    t_add += time.time() - t0
+    print(f"  Encrypt: {t_enc:.1f}s, cipher mult+add: {t_mul:.1f}s, avg: {t_add:.2f}s")
+
+    # ── 序列化骨架密文（其余位置 None）──
+    t0 = time.time(); bc = 0
+    enc_cols_ser = [None] * dim
+    enc_rows_ser = [None] * dim
+    for j in J_idx:
+        ser = agg_cols[j].serialize(); enc_cols_ser[j] = ser; bc += len(ser)
+    for k in I_idx:
+        ser = agg_rows[k].serialize(); enc_rows_ser[k] = ser; bc += len(ser)
+    print(f"  Serialized skeleton: {bc/1024/1024:.1f} MB, {time.time()-t0:.2f}s")
+    return enc_cols_ser, enc_rows_ser

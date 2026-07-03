@@ -9,11 +9,13 @@ from ckks_indices import select_indices_mincond
 
 def run_decryption_comparison(delta_w_plain, enc_cols, enc_rows, ctx,
                                label, true_rank, dim, strategies=None,
-                               r_values=None, plain_cols=None, plain_rows=None):
+                               r_values=None, plain_cols=None, plain_rows=None,
+                               skip_full=False):
     """全量 + 骨架解密对比。
 
     plain_cols/plain_rows: 部分加密模式（None = 纯 CKKS 解密）。
     strategies: dict of {name: callable(dw, r)->(I, J, cond)}.
+    skip_full: 跳过全量解密基线（Pipeline C 只有骨架密文，全量会碰到 None）。
     """
     if strategies is None:
         strategies = {"mincond": lambda dw, r: select_indices_mincond(dw, r)}
@@ -27,17 +29,25 @@ def run_decryption_comparison(delta_w_plain, enc_cols, enc_rows, ctx,
     print(f"{'─'*60}")
 
     # ── 全量解密基线 ──
-    print("  Full decryption (all columns) ...")
-    t0 = time.time()
-    if is_partial:
+    if skip_full:
+        # Pipeline C 仅持有骨架密文，无全量基线
+        t_full, b_full, eps_full = 0.0, 0, float("nan")
+        print("  Full decryption skipped (skeleton-only ciphertext)")
+    elif is_partial:
+        print("  Full decryption (all columns) ...")
+        t0 = time.time()
         cols = [resolve_col(j, enc_cols, plain_cols, ctx)[0] for j in range(dim)]
         _full_mat = np.column_stack(cols)
         t_full = time.time() - t0; b_full = 0  # partial 不计 bytes
+        eps_full = relative_error(_full_mat, delta_w_plain)
+        print(f"    t={t_full:.2f}s, bytes={b_full/1024/1024:.1f}MB, ε_full={eps_full:.2e}")
     else:
+        print("  Full decryption (all columns) ...")
+        t0 = time.time()
         _colmat, t_full, b_full = decrypt_selected(enc_cols, list(range(dim)), ctx)
         _full_mat = _colmat.T
-    eps_full = relative_error(_full_mat, delta_w_plain)
-    print(f"    t={t_full:.2f}s, bytes={b_full/1024/1024:.1f}MB, ε_full={eps_full:.2e}")
+        eps_full = relative_error(_full_mat, delta_w_plain)
+        print(f"    t={t_full:.2f}s, bytes={b_full/1024/1024:.1f}MB, ε_full={eps_full:.2e}")
 
     # ── 骨架解密 ──
     max_r = min(dim, true_rank)
