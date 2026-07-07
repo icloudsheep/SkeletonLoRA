@@ -2,143 +2,73 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-## Overview
+联邦 LoRA 场景下，基于 **CKKS 同态加密** 的密文域聚合实验。客户端只加密上传 LoRA
+因子 A/B，服务端在密文域完成聚合并下发，客户端用私钥解密。对比两种聚合方式：
 
-SkeletonLoRA is a **CKKS-based low-rank skeleton decryption** framework for federated LoRA aggregation. Instead of decrypting the entire aggregated update matrix $\Delta W \in \mathbb{R}^{d \times d}$, the server decrypts only a small subset of rows and columns (the "skeleton"), then reconstructs the full matrix via **CUR decomposition**:
+- **完整聚合**：服务端重建整个 $d\times d$ 聚合矩阵后下发。
+- **骨架聚合**：服务端只重建 uniform 骨架覆盖的 $r$ 行 + $r$ 列，客户端解密后用
+  CUR 分解 $\Delta W_{\text{rec}} = C_r M_r^{-1} R_r$ 重建完整矩阵。
 
-$$\Delta W_{\text{rec}} = C_r \cdot M_r^{-1} \cdot R_r$$
+参考真值为平均聚合 $\Delta W_{\text{mean}} = \frac{1}{N}\sum_i B_i A_i$，服务端密文域
+的 $\times\frac{1}{N}$ 与之对齐。
 
-where $C_r \in \mathbb{R}^{d \times r}$ are $r$ decrypted columns, $R_r \in \mathbb{R}^{r \times d}$ are $r$ decrypted rows, and $M_r \in \mathbb{R}^{r \times r}$ is their intersection block. This yields significant speedup and communication savings proportional to $d/r$ — for a 3200×3200 matrix, skeleton decryption with $r=16$ achieves **>100× speedup** while maintaining relative error below $10^{-4}$.
+## 密钥边界
 
-The framework serves as the **CKKS homomorphic encryption baseline** for the SecLoRA paper, benchmarking homomorphic aggregation of LoRA updates against the PC-MCFE cryptographic scheme.
+| 角色 | 持有 | 能力 |
+|------|------|------|
+| 客户端 | 公开 context（加密） + 私钥 context（解密） | 加密上传、解密下发 |
+| 服务端 | 公开 context | 密文加/乘/平均，**无法解密** |
 
-## Key Concepts
+服务端全程只接触密文，这是同态加密隐私保证的基础。
 
-### Low-Rank Skeleton Decryption
+## 聚合语义（正确性关键）
 
-In federated LoRA fine-tuning, each client $i$ holds factor matrices $B_i \in \mathbb{R}^{d \times R}$ and $A_i \in \mathbb{R}^{R \times d}$ (where $R \ll d$ is the LoRA rank). The local update is $\Delta W_i = B_i A_i$, and the server aggregates:
+联邦聚合必须先对每个客户端各自算 $B_i A_i$、再跨客户端求和，
+**不是** $(\sum_i B_i)(\sum_i A_i)$——后者会引入客户端间交叉项 $B_i A_j\ (i\neq j)$。
+服务端对每个客户端独立在密文域重建外积后累加，满足该语义。
 
-$$\Delta W = \sum_{i=1}^{N} \Delta W_i$$
-
-Since each $\Delta W_i$ has rank at most $R$, the aggregate has rank at most $N \cdot R$. For $N\!=\!4$ clients with $R\!=\!4$, $\text{rank}(\Delta W) \le 16 \ll 3200$. This low-rank structure means only $r$ linearly independent rows and columns are needed for exact reconstruction.
-
-### Three Index Selection Strategies
-
-| Strategy | Plaintext Access | Description |
-|----------|:---:|------|
-| **mincond** (default) | ✓ | Randomly samples 20,000 candidate $(I_r, J_r)$ pairs, picks the one minimizing $\text{cond}(M_r)$ |
-| **leverage** | ✓ | Computes row/column leverage scores from the top-$r$ singular vectors of $\Delta W$ |
-| **uniform** | ✗ | Evenly-spaced indices — privacy-preserving, no plaintext access needed |
-
-### Two Pipelines
-
-- **Pipeline A — Homomorphic Aggregation**: Each client CKKS-encrypts rows and columns of $\Delta W_i$ locally; the server adds ciphertexts homomorphically. Simulates a real federated deployment.
-- **Pipeline B — Plaintext Shortcut**: Computes $\Delta W$ in plaintext first, then encrypts. Serves as a control to isolate CKKS encryption noise from homomorphic aggregation noise.
-
-## Project Structure
+## 项目结构
 
 ```
 SkeletonLoRA/
-├── ckks_skeleton_test.py                          # Main experiment: 3200×3200, 4 clients
-├── Low-Rank Skeleton Decryption Correctness Test.md # Formal test documentation
-├── environment.yaml                                 # Conda environment (lora_fe, py3.10)
-├── CKKS/
-│   ├── ckks.py                                      # CKKS encrypt/decrypt helpers (TenSEAL)
-│   └── gen_ckks_key.py                              # CKKS key generation
-├── _scripts/
-│   ├── paper_table_2_CKKS.py                        # CKKS baseline for Table 2 (hybrid A-col encryption)
-│   ├── paper_table_2_CKKS_Packed.py                  # Packed CKKS variant (merged into above)
-│   └── paper_table_3_CKKS.py                        # Full CKKS B×A pipeline for Table 3
-├── _res/                                            # Experiment results (CSV + PNG charts)
-│   ├── ckks_skeleton_results.{csv,png}              # Pipeline A vs B comparison
-│   ├── ckks_strategy_comparison.{csv,png}           # mincond vs leverage vs uniform
-│   ├── demo_10x4_results.{csv,png}                  # 2-client 10×4 demo
-│   └── demo_float_vs_int.{csv,png}                  # CKKS encoding precision test
-└── temp_output_dir/                                 # LoRA adapter weights (gitignored)
-    └── client_{0..49}_output/final_lora/
+├── main.py          # 唯一编排入口：建密钥→加密上传→密文聚合→解密→误差分析→写CSV
+├── fe_config.py     # 配置常量（规模、CKKS 参数、输出路径）
+├── fe_context.py    # CKKS 私钥/公开 context 创建与派生
+├── fe_client.py     # 客户端：加密上传 A/B 因子、私钥解密
+├── fe_server.py     # 服务端：密文域骨架聚合 / 完整聚合
+├── fe_skeleton.py   # uniform 骨架索引 + CUR 重建
+├── fe_metrics.py    # 耗时/传输量收集，导出中文 CSV
+├── _res/            # 实验结果（聚合实验结果.csv）
+├── temp_output_dir/ # 真实 LoRA 权重（gitignored，--real 模式需要）
+└── __SHE-LoRA-main/, _scripts/   # 参考实现，不参与主流程
 ```
 
-## Installation
-
-### Prerequisites
-
-- Conda (Miniconda or Anaconda)
-- CUDA Toolkit 12.8+ (for GPU acceleration)
-
-### Setup
+## 环境
 
 ```shell
-git clone https://github.com/icloudsheep/SkeletonLoRA.git
-cd SkeletonLoRA
-
-# Create and activate the conda environment
 conda env create -f environment.yaml
-conda activate lora_fe
+conda activate skeleton_lora_fe   # 注意环境名为 skeleton_lora_fe
 ```
 
-The environment includes:
-- **TenSEAL 0.3.16** — CKKS homomorphic encryption
-- **PyTorch 2.9.1** — GPU-accelerated tensor operations
-- **HuggingFace ecosystem** — safetensors, peft, transformers
-- **charm-crypto** — pairing-based cryptography (for PC-MCFE)
-- **matplotlib, seaborn** — visualization
+依赖：Python 3.10 + tenseal 0.3.16 + safetensors + numpy + matplotlib。
 
-### Generate CKKS Keys
+## 用法
 
 ```shell
-python CKKS/gen_ckks_key.py
+python main.py          # demo 模式：随机 A/B，无需权重，小维度秒级跑通
+python main.py --real   # 真实模式：从 temp_output_dir 加载 LoRA 权重
 ```
 
-## Usage
+维度 `DIM` 在 `fe_config.py` 配置。**注意**：完整聚合需在密文域算整个 $d\times d$
+矩阵，代价随 $d$ 平方增长，$d=3200$ 时上传密文可达数 GB、耗时分钟级，实测不可行；
+故 demo 默认取小维度让两条路径都能跑完对比。真实大维度建议只跑骨架路径。
 
-### Main Experiment (3200×3200, 4 clients)
+## 输出
 
-```shell
-python ckks_skeleton_test.py
-```
-
-This runs the full homomorphic aggregation pipeline with 4 clients, loads pre-trained LoRA adapters from `temp_output_dir/`, tests skeleton ranks $r \in \{2,3,\dots,16\}$, and produces comparison charts under `_res/`.
-
-### Demo Mode (10×10, 2 clients)
-
-```shell
-python ckks_skeleton_test.py --demo
-```
-
-A quick sanity check with randomly generated 10×4 LoRA matrices — runs in seconds without pre-trained weights.
-
-### Float vs Integer Precision Comparison
-
-```shell
-python ckks_skeleton_test.py --demo-compare
-```
-
-Compares reconstruction error between floating-point and integer-valued matrices with identical structure, isolating CKKS encoding precision (~$2^{-40}$) from encryption noise.
-
-### Paper Scripts
-
-Individual benchmark scripts under `_scripts/` can be run independently:
-
-```shell
-# Table 2: CKKS hybrid encryption benchmarks (traffic + timing)
-python _scripts/paper_table_2_CKKS.py
-
-# Table 3: Full CKKS B×A pipeline simulation
-python _scripts/paper_table_3_CKKS.py
-```
-
-## Results
-
-Representative results from the main experiment (3200×3200, 4 clients):
-
-| Metric | Full Decryption | Skeleton ($r\!=\!16$) | Improvement |
-|--------|:---:|:---:|:---:|
-| Decryption time | ~5 s | ~0.04 s | **>100×** |
-| Download data | ~82 MB | ~800 KB | **~99%** |
-| Relative error ($\varepsilon$) | $10^{-10}$ | $10^{-5}$ | within $\tau = 10^{-4}$ |
-
-The skeleton reconstruction error drops sharply as $r$ approaches the true rank of $\Delta W$ (typically 12–16 for 4 clients with $R=4$). All three index selection strategies achieve $\varepsilon < 10^{-4}$ once $r \ge \text{rank}(\Delta W)$.
+`_res/聚合实验结果.csv`（中文表头，utf-8-sig 编码）记录每一步的耗时（秒）、
+网络传输字节 / MB 与备注，末尾为完整聚合及各 $r$ 值骨架聚合相对 $\Delta W_{\text{mean}}$
+的误差。
 
 ## License
 
-This project is licensed under the Apache License 2.0 — see [LICENSE](LICENSE) for details.
+Apache License 2.0 — 见 [LICENSE](LICENSE)。
