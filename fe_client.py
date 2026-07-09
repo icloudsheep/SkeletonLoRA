@@ -27,12 +27,22 @@ import tenseal as ts
 def group_size(n_slots, dim, packing):
     """打包时每条密文并排容纳的段数 g。
 
-    packed 取 g = 槽位数 // dim（至少 1）；unpacked 恒为 1（每段独立一条密文）。
+    packed 取 g = 槽位数 // dim（至少 1）；unpacked 恒为 1（每段独立一段一条密文）。
     dim ≥ 槽位数时 packed 也只能取 1，打包自然退化为不打包。
+
+    防静默降级：dim 超过槽位数时，tenseal 不报错而是打印 WARNING、把向量拆进多条
+    密文并禁用 matmul 等操作，导致外积槽位对齐失效（结果可能错）或内积延迟报错。
+    故此处显式拦截 dim > n_slots，把隐蔽的静默降级提前暴露为明确错误。
 
     :param n_slots: 一条密文可用明文槽位数（= poly_modulus_degree/2），由 main 传入；
                     tenseal 0.3.16 的 Context 未暴露该值的读取接口，故显式传参。
+    :raises ValueError: dim 超过单条密文槽位数，任何打包方式都无法保证槽位对齐
     """
+    if dim > n_slots:
+        raise ValueError(
+            f"dim={dim} 超过单条密文槽位数 {n_slots}，无法保证槽位对齐："
+            f"请增大 POLY_MODULUS_DEGREE（当前槽位=degree/2）使 2×dim≤degree，"
+            f"或改用分块打包。")
     if packing == "unpacked":
         return 1
     return max(1, n_slots // dim)
