@@ -4,7 +4,30 @@
 
 ## 统计层级
 
-实验指标同时保留以下层级：
+实验指标拆分为多张主题表，避免单个 AB 明细表过宽。`ab_metrics.csv` 是任务摘要；
+需要细看精度、耗时、通信或 CUR 时，读取对应主题表。
+
+## 输出文件
+
+| 文件 | 含义 |
+|---|---|
+| `ab_metrics.csv` | 每个 AB/配置一行的摘要，保留状态、主误差、主耗时和通信合计 |
+| `ab_config_metrics.csv` | 每个 AB/配置的实验参数快照 |
+| `precision_metrics.csv` | 误差、密文区域误差、明文区域误差和 CUR 重建误差 |
+| `timing_metrics.csv` | 客户端加密、服务端聚合、客户端解密和 CUR 耗时 |
+| `communication_metrics.csv` | 上传、下发的密文、明文、元数据和合计字节 |
+| `skeleton_cur_metrics.csv` | skeleton 明/密文元素数、交叉块秩、条件数和逆方法 |
+| `context_metrics.csv` | 每种 CKKS 方法的 context 创建、派生和 public context 字节数 |
+| `artifacts/ab_profile.csv` | 每个 AB 的 TensorBoard 横轴 index、形状和 A/B 基础范数 |
+| `artifacts/run_summary.json` | 当前 run 的机器可读摘要 |
+| `artifacts/run_summary.md` | 当前 run 的人类可读摘要 |
+| `artifacts/top_errors.csv` | 相对 Frobenius 误差最高的任务 |
+| `artifacts/top_communication.csv` | 聚合阶段通信量最高的任务 |
+| `artifacts/top_timing.csv` | 任务总耗时最高的任务 |
+
+## 统计层级
+
+实验指标保留以下层级：
 
 | 层级 | 标识字段 | 含义 |
 |---|---|---|
@@ -31,6 +54,7 @@
 | `实际 skeleton rank` | 整数 | `min(skeleton rank, N_CLIENTS × rank)` |
 | `输出维度` | 整数 | B 的行数 |
 | `输入维度` | 整数 | A 的列数 |
+| `AB index` | 整数 | TensorBoard `ab_profile/*` 图表使用的横轴位置 |
 | `CKKS 多项式次数` | 整数 | `poly_modulus_degree` |
 | `CKKS 槽位数` | 整数 | `poly_modulus_degree / 2` |
 
@@ -76,15 +100,15 @@
 
 | 中文字段 | 类型/单位 | 说明 |
 |---|---|---|
-| `上传密文字节` | 字节 | 客户端上传 CKKS 序列化密文大小 |
-| `上传明文字节` | 字节 | 客户端上传明文 NumPy payload 大小 |
-| `上传元数据字节` | 字节 | AB 标识、形状、块类型和索引范围等协议元数据 |
-| `单客户端上传字节` | 字节 | 上述三类上传字节之和 |
+| `上传密文字节` | 字节 | 所有客户端上传 CKKS 序列化密文合计大小 |
+| `上传明文字节` | 字节 | 所有客户端上传明文 NumPy payload 合计大小 |
+| `上传元数据字节` | 字节 | 所有客户端上传的 AB 标识、形状、块类型和索引范围等协议元数据 |
+| `上传合计字节` | 字节 | 上传密文、明文和元数据之和 |
 | `下发密文字节` | 字节 | 服务端下发 CKKS 序列化密文大小 |
 | `下发明文字节` | 字节 | 服务端下发明文 payload 大小 |
 | `下发元数据字节` | 字节 | 服务端下发结果的协议元数据 |
-| `单次下发字节` | 字节 | 上述三类下发字节之和 |
-| `聚合阶段总网络字节` | 字节 | N 个客户端上传加服务端一次下发 |
+| `下发合计字节` | 字节 | 下发密文、明文和元数据之和 |
+| `聚合阶段总网络字节` | 字节 | 所有客户端上传合计加服务端一次下发 |
 | `落盘文件字节` | 字节 | 启用二进制产物保存时的文件实际大小 |
 | `初始化 context 字节` | 字节 | public context 的一次性序列化大小 |
 | `生命周期总网络字节` | 字节 | 初始化 context 通信加聚合阶段总网络 |

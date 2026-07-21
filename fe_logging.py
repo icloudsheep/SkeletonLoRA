@@ -121,12 +121,10 @@ class RunLogger:
         """记录任务状态；恢复时只将 completed 视为可跳过。"""
         record = {"task_id": task_id, "status": status, **fields}
         self._append(self.paths.tasks, record)
-        if self._writer is not None:
-            self.text(f"tasks/{task_id}/status", status)
 
-    def scalar(self, tag, value, step):
+    def scalar(self, tag, value, step, **fields):
         """写入一个 TensorBoard 标量和 JSONL 指标。"""
-        record = {"tag": tag, "value": value, "step": step}
+        record = {"tag": tag, "value": value, "step": step, **fields}
         self._append(self.paths.metrics, record)
         if self._writer is not None and value is not None:
             summary = self._summary_pb2.Summary(
@@ -137,6 +135,11 @@ class RunLogger:
                     wall_time=time.time(), step=int(step), summary=summary
                 )
             )
+
+    def metric(self, tag, value, step, **fields):
+        """只写入 JSONL 指标，不生成 TensorBoard 图表。"""
+        record = {"tag": tag, "value": value, "step": step, **fields}
+        self._append(self.paths.metrics, record)
 
     def text(self, tag, text, step=0):
         """写入 TensorBoard 文本。"""
