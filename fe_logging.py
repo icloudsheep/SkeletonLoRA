@@ -104,11 +104,18 @@ class RunLogger:
         self.paths = paths
         self._writer = None
         try:
-            from tensorboard.compat.proto import event_pb2, summary_pb2
+            from tensorboard.compat.proto import event_pb2, summary_pb2, tensor_pb2, tensor_shape_pb2, types_pb2
+            from tensorboard.plugins.scalar import metadata as scalar_metadata
+            from tensorboard.plugins.text import metadata as text_metadata
             from tensorboard.summary.writer.event_file_writer import EventFileWriter
 
             self._event_pb2 = event_pb2
             self._summary_pb2 = summary_pb2
+            self._tensor_pb2 = tensor_pb2
+            self._tensor_shape_pb2 = tensor_shape_pb2
+            self._types_pb2 = types_pb2
+            self._scalar_metadata = scalar_metadata
+            self._text_metadata = text_metadata
             self._writer = EventFileWriter(str(paths.tensorboard))
         except Exception:
             self._writer = None
@@ -127,8 +134,18 @@ class RunLogger:
         record = {"tag": tag, "value": value, "step": step, **fields}
         self._append(self.paths.metrics, record)
         if self._writer is not None and value is not None:
+            metadata = self._scalar_metadata.create_summary_metadata(
+                display_name=tag,
+                description="",
+            )
             summary = self._summary_pb2.Summary(
-                value=[self._summary_pb2.Summary.Value(tag=tag, simple_value=float(value))]
+                value=[
+                    self._summary_pb2.Summary.Value(
+                        tag=tag,
+                        metadata=metadata,
+                        simple_value=float(value),
+                    )
+                ]
             )
             self._writer.add_event(
                 self._event_pb2.Event(
@@ -144,15 +161,17 @@ class RunLogger:
     def text(self, tag, text, step=0):
         """写入 TensorBoard 文本。"""
         if self._writer is not None:
-            from tensorboard.compat.proto import tensor_pb2, types_pb2
-
-            metadata = self._summary_pb2.SummaryMetadata(
-                plugin_data=self._summary_pb2.SummaryMetadata.PluginData(
-                    plugin_name="text"
-                )
+            metadata = self._text_metadata.create_summary_metadata(
+                display_name=tag,
+                description="",
             )
-            tensor = tensor_pb2.TensorProto(
-                dtype=types_pb2.DT_STRING,
+            tensor = self._tensor_pb2.TensorProto(
+                dtype=self._types_pb2.DT_STRING,
+                tensor_shape=self._tensor_shape_pb2.TensorShapeProto(
+                    dim=[
+                        self._tensor_shape_pb2.TensorShapeProto.Dim(size=1),
+                    ]
+                ),
                 string_val=[str(text).encode("utf-8")],
             )
             summary = self._summary_pb2.Summary(
