@@ -1813,3 +1813,16 @@ TensorBoard 之前把每个 AB 对都当作独立 tag，导致同一配置下出
 
 - 降低 `logger.flush()` 频率，减少频繁刷盘；
 - 对 `ab_profile` 只保留少量基础特征，避免为展示再额外增加太多图表。
+
+## Q120：为什么不同模式现在会生成不同的 runs 文件夹？
+
+### 回答
+
+现在把“一个命令里可比较的实验 case”拆成独立 run 目录。case 的粒度是：
+
+- `method`
+- `mode`
+- `ratio`
+- `skeleton`
+
+这样可以把互相对比的 case 彻底分开，避免不同模式混进同一个 run 目录里。单个 case 仍然覆盖该 case 下的全部 AB，TensorBoard 里继续按 `AB index` 展示同一 case 的点集。

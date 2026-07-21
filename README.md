@@ -78,13 +78,13 @@ python main.py          # demo 模式：随机 A/B，无需权重，小维度秒
 python main.py --real   # 真实模式：从 temp_output_dir 加载 LoRA 权重
 
 # 新协议：小维度单配置验证
-python modern_main.py --dim 16 --method 外积 --mode partial_A --ratio 25 --skeleton
+python modern_main.py --dim 16 --method 外积 --mode partial_A --ratio 25 --skeleton true
 
 # 新协议：完整 demo 配置矩阵
 python modern_main.py --dim 64
 
 # 新协议：真实权重；高维运行前先评估内存和耗时
-python modern_main.py --real --method 外积 --mode full --skeleton
+python modern_main.py --real true --method 外积 --mode full --skeleton false
 ```
 
 维度 `DIM` 在 `fe_config.py` 配置。**注意**：完整聚合需在密文域算整个 $d\times d$
@@ -93,12 +93,15 @@ python modern_main.py --real --method 外积 --mode full --skeleton
 
 ## 输出
 
-新协议每次运行都写入 `_res/runs/<时间戳>-<数据来源>-d<最大维度>/`，包括配置快照、
-环境快照、任务状态、主题 CSV、摘要 artifacts 和 TensorBoard event。TensorBoard 按
-`方法/模式/比例/skeleton` 归并结果指标 tag，同一配置下的 AB 结果以 step 展示在同一张图；
-另有 `AB画像/*` 用 AB index 展示 A/B 范数与形状，并用 `AB画像/索引映射`
-记录 index 到 AB 标识的映射。中文字段解释见 [`CSV字段说明.md`](CSV字段说明.md)。
-旧入口仍写入原有 `_res/` 结果文件。
+每个实验 case 都会写入独立的 `_res/runs/<时间戳>-<数据来源>-d<最大维度>-<case>/`
+目录；如果一次命令选择了多个模式或 skeleton 选项，就会生成多个 sibling run 目录。
+每个目录都包含配置快照、环境快照、任务状态、主题 CSV、摘要 artifacts 和 TensorBoard
+event。TensorBoard 按 `方法/模式/比例/skeleton` 归并结果指标 tag，同一 case 下的 AB 结果
+以 step 展示在同一张图；另有 `AB画像/*` 用 AB index 展示 A/B 范数与形状，并用
+`AB画像/索引映射` 记录 index 到 AB 标识的映射。中文字段解释见
+[`CSV字段说明.md`](CSV字段说明.md)。旧入口仍写入原有 `_res/` 结果文件。
+
+`--skeleton` 支持 `true/false` 显式传值；不传该参数时，默认同时跑 `false` 和 `true` 两种 case。
 
 ## License
 

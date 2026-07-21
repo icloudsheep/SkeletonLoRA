@@ -47,6 +47,17 @@ def _progress(message):
     print(message, flush=True)
 
 
+def _parse_bool_arg(value):
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes", "y", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(f"布尔参数只接受 true/false，收到 {value!r}")
+
+
 def gen_demo_collections(n_clients, dim, rank):
     """生成一个固定随机种子的矩形 demo AB 集合。"""
     rng = np.random.RandomState(42)
@@ -68,6 +79,38 @@ def gen_demo_collections(n_clients, dim, rank):
 def _task_id(identifier, method, mode, ratio, skeleton):
     ratio_label = "none" if ratio is None else str(ratio)
     return "/".join((identifier.text, method, mode, ratio_label, str(int(skeleton))))
+
+
+def _method_slug(method):
+    return {"明文参考": "plain", "外积": "outer", "内积": "inner"}[method]
+
+
+def _mode_slug(mode):
+    return {
+        "plain_baseline": "plain_baseline",
+        "partial_A": "partial_A",
+        "partial_AB": "partial_AB",
+        "full": "full",
+    }[mode]
+
+
+def _ratio_slug(ratio):
+    return "none" if ratio is None else f"ratio{ratio}"
+
+
+def _skeleton_slug(skeleton):
+    return "skeleton" if skeleton else "full"
+
+
+def _case_label(method, mode, ratio, skeleton):
+    return "-".join(
+        (
+            _method_slug(method),
+            _mode_slug(mode),
+            _ratio_slug(ratio),
+            _skeleton_slug(skeleton),
+        )
+    )
 
 
 def _method_label(method):
@@ -598,88 +641,100 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
     if any(min(shape) < SKELETON_R for shape in shapes.values()):
         raise ValueError(f"存在维度小于 SKELETON_R={SKELETON_R} 的 AB 对")
 
-    label = ("real" if use_real else "demo") + f"-d{max_dim}"
-    paths = create_run_paths(RUNS_DIR, label)
-    run_id = paths.root.name
-    config = {
-        "use_real": use_real,
-        "dim": dim,
-        "max_dim": max_dim,
-        "n_clients": N_CLIENTS,
-        "rank": RANK,
-        "lora_alpha": LORA_ALPHA,
-        "scaling": SCALING,
-        "skeleton_r": SKELETON_R,
-        "poly_modulus_degree": POLY_MODULUS_DEGREE,
-        "coeff_mod_bit_sizes": COEFF_MOD_BIT_SIZES,
-        "global_scale": GLOBAL_SCALE,
-        "methods": METHODS,
-        "modes": ["plain_baseline", "partial_A", "partial_AB", "full"],
-        "partial_ratios": PARTIAL_RATIOS,
-        "warnings": warnings,
-    }
-    write_json(paths.config, config)
-    write_json(paths.environment, environment_snapshot())
-    logger = RunLogger(paths)
-    logger.text("运行/配置", json.dumps(config, ensure_ascii=False, indent=2))
+    base_label = ("real" if use_real else "demo") + f"-d{max_dim}"
     ab_profile_rows = _ab_profile_rows(identifiers, collections, shapes)
-    _write_ab_profile(paths, logger, ab_profile_rows)
     ab_indices = {identifier: index for index, identifier in enumerate(identifiers)}
-    _progress(f"[运行] 输出目录：{paths.root}")
-    rows = []
-    step = 0
-    completed_tasks = 0
-    failed_tasks = 0
     contexts = {}
     context_metrics = {}
-    try:
-        for method in ["明文参考", *METHODS]:
-            if selected_method and method != selected_method:
-                continue
-            if method in METHODS:
-                _progress(f"[上下文] 创建 {method} CKKS context...")
-                started = time.perf_counter()
-                secret_ctx = create_secret_context(
-                    POLY_MODULUS_DEGREE,
-                    COEFF_MOD_BIT_SIZES,
-                    GLOBAL_SCALE,
-                    galois=method == "内积",
-                )
-                context_create = time.perf_counter() - started
-                started = time.perf_counter()
-                public_ctx = derive_public_context(secret_ctx)
-                context_derive = time.perf_counter() - started
-                contexts[method] = (secret_ctx, public_ctx)
-                context_metrics[method] = {
-                    "create_seconds": context_create,
-                    "derive_seconds": context_derive,
-                    "public_context_bytes": len(public_ctx.serialize()),
+    run_paths = []
+    for method in ["明文参考", *METHODS]:
+        if selected_method and method != selected_method:
+            continue
+        task_modes = [("plain_baseline", None)] if method == "明文参考" else []
+        if method in METHODS:
+            task_modes += [("full", None)]
+            task_modes += [(mode, ratio) for mode in ("partial_A", "partial_AB") for ratio in PARTIAL_RATIOS]
+        task_modes = [
+            (mode, ratio)
+            for mode, ratio in task_modes
+            if (not selected_mode or mode == selected_mode)
+            and (selected_ratio is None or ratio == selected_ratio)
+        ]
+        if not task_modes:
+            continue
+        if method in METHODS:
+            _progress(f"[上下文] 创建 {method} CKKS context...")
+            started = time.perf_counter()
+            secret_ctx = create_secret_context(
+                POLY_MODULUS_DEGREE,
+                COEFF_MOD_BIT_SIZES,
+                GLOBAL_SCALE,
+                galois=method == "内积",
+            )
+            context_create = time.perf_counter() - started
+            started = time.perf_counter()
+            public_ctx = derive_public_context(secret_ctx)
+            context_derive = time.perf_counter() - started
+            contexts[method] = (secret_ctx, public_ctx)
+            context_metrics[method] = {
+                "create_seconds": context_create,
+                "derive_seconds": context_derive,
+                "public_context_bytes": len(public_ctx.serialize()),
+            }
+            _progress(
+                f"[上下文] {method} 完成：创建={context_create:.2f}s，"
+                f"派生={context_derive:.2f}s，公钥上下文={len(public_ctx.serialize())} bytes"
+            )
+        for mode, ratio in task_modes:
+            skeleton_values = [False, True]
+            if selected_skeleton is not None:
+                skeleton_values = [selected_skeleton]
+            for skeleton in skeleton_values:
+                label = f"{base_label}-{_case_label(method, mode, ratio, skeleton)}"
+                paths = create_run_paths(RUNS_DIR, label)
+                run_id = paths.root.name
+                config = {
+                    "use_real": use_real,
+                    "dim": dim,
+                    "max_dim": max_dim,
+                    "n_clients": N_CLIENTS,
+                    "rank": RANK,
+                    "lora_alpha": LORA_ALPHA,
+                    "scaling": SCALING,
+                    "skeleton_r": SKELETON_R,
+                    "poly_modulus_degree": POLY_MODULUS_DEGREE,
+                    "coeff_mod_bit_sizes": COEFF_MOD_BIT_SIZES,
+                    "global_scale": GLOBAL_SCALE,
+                    "methods": METHODS,
+                    "modes": ["plain_baseline", "partial_A", "partial_AB", "full"],
+                    "partial_ratios": PARTIAL_RATIOS,
+                    "warnings": warnings,
+                    "case": {
+                        "method": method,
+                        "mode": mode,
+                        "ratio": ratio,
+                        "skeleton": skeleton,
+                    },
                 }
-                _progress(
-                    f"[上下文] {method} 完成：创建={context_create:.2f}s，"
-                    f"派生={context_derive:.2f}s，公钥上下文={len(public_ctx.serialize())} bytes"
-                )
-            for identifier in identifiers:
-                shape = shapes[identifier]
-                pairs = [
-                    materialize_pair(collection, identifier, shape, RANK)
-                    for collection in collections
-                ]
-                B_list = [pair.b for pair in pairs]
-                A_list = [pair.a for pair in pairs]
-                task_modes = [("plain_baseline", None)] if method == "明文参考" else []
-                if method in METHODS:
-                    task_modes += [("full", None)]
-                    task_modes += [(mode, ratio) for mode in ("partial_A", "partial_AB") for ratio in PARTIAL_RATIOS]
-                for mode, ratio in task_modes:
-                    if selected_mode and mode != selected_mode:
-                        continue
-                    if selected_ratio is not None and ratio != selected_ratio:
-                        continue
-                    skeleton_values = [False, True]
-                    if selected_skeleton is not None:
-                        skeleton_values = [selected_skeleton]
-                    for skeleton in skeleton_values:
+                write_json(paths.config, config)
+                write_json(paths.environment, environment_snapshot())
+                logger = RunLogger(paths)
+                logger.text("运行/配置", json.dumps(config, ensure_ascii=False, indent=2))
+                _write_ab_profile(paths, logger, ab_profile_rows)
+                _progress(f"[运行] 输出目录：{paths.root}")
+                rows = []
+                step = 0
+                completed_tasks = 0
+                failed_tasks = 0
+                try:
+                    for identifier in identifiers:
+                        shape = shapes[identifier]
+                        pairs = [
+                            materialize_pair(collection, identifier, shape, RANK)
+                            for collection in collections
+                        ]
+                        B_list = [pair.b for pair in pairs]
+                        A_list = [pair.a for pair in pairs]
                         task_id = _task_id(identifier, method, mode, ratio, skeleton)
                         _progress(f"[任务 {step + 1}] {task_id}")
                         logger.task(task_id, "started")
@@ -799,27 +854,45 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
                         logger.scalar("进度/已处理任务数", completed_tasks + failed_tasks, step)
                         step += 1
                         logger.flush()
-    finally:
-        logger.close()
-    _write_metric_tables(paths.root, rows)
-    context_rows = [
-        {"方法": method, **values} for method, values in context_metrics.items()
-    ]
-    _write_csv(paths.root / "context_metrics.csv", context_rows)
-    _write_artifacts(paths, rows, context_rows)
-    return paths.root
+                finally:
+                    logger.close()
+                _write_metric_tables(paths.root, rows)
+                context_rows = [
+                    {"方法": method, **values}
+                    for method, values in context_metrics.items()
+                ]
+                _write_csv(paths.root / "context_metrics.csv", context_rows)
+                _write_artifacts(paths, rows, context_rows)
+                run_paths.append(paths.root)
+    if not run_paths:
+        raise ValueError("没有符合筛选条件的实验案例")
+    return run_paths
 
 
 def main():
     parser = argparse.ArgumentParser(description="SkeletonLoRA 新实验协议")
-    parser.add_argument("--real", action="store_true", help="加载真实 LoRA 权重")
+    parser.add_argument(
+        "--real",
+        nargs="?",
+        const=True,
+        default=False,
+        type=_parse_bool_arg,
+        help="加载真实 LoRA 权重（可省略值；显式 true/false 也可）",
+    )
     parser.add_argument("--dim", type=int, default=None, help="demo 矩阵维度")
     parser.add_argument("--method", choices=["明文参考", "外积", "内积"], default=None)
     parser.add_argument("--mode", choices=["plain_baseline", "partial_A", "partial_AB", "full"], default=None)
     parser.add_argument("--ratio", type=int, choices=PARTIAL_RATIOS, default=None)
-    parser.add_argument("--skeleton", action="store_true", default=None)
+    parser.add_argument(
+        "--skeleton",
+        nargs="?",
+        const=True,
+        default=None,
+        type=_parse_bool_arg,
+        help="只跑指定 skeleton 状态；省略则同时跑 false/true，显式 true/false 也可",
+    )
     args = parser.parse_args()
-    path = run_experiment(
+    paths = run_experiment(
         use_real=args.real,
         dim=args.dim,
         selected_method=args.method,
@@ -827,7 +900,12 @@ def main():
         selected_ratio=args.ratio,
         selected_skeleton=args.skeleton,
     )
-    print(f"[完成] run → {path}")
+    if len(paths) == 1:
+        print(f"[完成] run → {paths[0]}")
+    else:
+        print("[完成] runs:")
+        for path in paths:
+            print(f"  - {path}")
 
 
 if __name__ == "__main__":
