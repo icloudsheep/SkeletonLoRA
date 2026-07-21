@@ -24,3 +24,5 @@ dependencies:
       - safetensors==0.8.0    # Read LoRA adapter weights (framework='np', no torch)
       - numpy                 # Matrix operations, SVD, linear algebra
       - matplotlib             # Plots (Agg backend, headless)
+      - tensorboard            # Live experiment metrics and resumable run logs
+      - psutil                 # Hardware and environment snapshots

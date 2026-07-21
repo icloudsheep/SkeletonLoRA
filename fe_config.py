@@ -11,6 +11,8 @@ TEMP_OUTPUT_DIR = "./temp_output_dir"
 # ── 联邦规模 ────────────────────────────────────────────────────────────
 N_CLIENTS = 4          # 参与聚合的客户端数量 N
 RANK = 4               # 每个客户端 LoRA 因子的秩 R（B 为 dim×R，A 为 R×dim）
+LORA_ALPHA = 8         # 全局 LoRA 缩放参数；SCALING = LORA_ALPHA / RANK
+SCALING = LORA_ALPHA / RANK
 
 # 实验维度 d（ΔW 为 d×d）。
 # 取舍：无骨架基线需在密文域算完整 d×d 矩阵，代价约 O(d^2·R·N) 次密文乘，
@@ -47,6 +49,30 @@ METHODS = ["外积", "内积"]
 
 # 骨架路径统一取的骨架规模（并集口径）。取真实秩量级 N·RANK 保证 CUR 可无损重建。
 SKELETON_R = 16
+CUR_CONDITION_NUMBER_THRESHOLD = 1e12
+RELATIVE_ERROR_WARNING = 1e-3
+RELATIVE_ERROR_FAILURE = 1e-1
+
+# ── 新实验模式 ───────────────────────────────────────────────────────────
+# plain_baseline 绕过 CKKS；full 加密全部 A/B；partial_A 只加密 A 的前 p% 列；
+# partial_AB 同时加密 A 的前 p% 列和 B 的前 p% 行。
+EXPERIMENT_MODES = ["plain_baseline", "partial_A", "partial_AB", "full"]
+PARTIAL_RATIOS = [1, 5, 25, 50]
+MODE_FULL_RATIO = 100
+
+# 结果口径：packed/unpacked 不再作为对比轴，内部实现使用 packed 策略。
+PACKING = "packed"
+
+# 运行产物与持久化策略。
+RUNS_DIR = "_res/runs"
+SAVE_COMMUNICATION_PAYLOADS = False
+SAVE_MATRIX_ARTIFACTS = False
+SAVE_PRIVATE_CONTEXT = False
+
+# 实验重复：demo 预热 1 次、正式 3 次；真实权重只执行 1 次。
+DEMO_WARMUP_RUNS = 1
+DEMO_REPEATS = 3
+REAL_REPEATS = 1
 
 # 内积法-全加密单格的服务端时间预算（秒）。full 内积每个输出元一次 ct×ct dot，
 # 完整重建需 O(d²·N) 次，可能极慢；超过预算则如实标注「不可行」，绝不编造数字。
