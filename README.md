@@ -96,7 +96,7 @@ python modern_main.py --real --method 外积 --mode full --skeleton
 新协议每次运行都写入 `_res/runs/<时间戳>-<数据来源>-d<最大维度>/`，包括配置快照、
 环境快照、任务状态、主题 CSV、摘要 artifacts 和 TensorBoard event。TensorBoard 按
 `方法/模式/比例/skeleton` 归并结果指标 tag，同一配置下的 AB 结果以 step 展示在同一张图；
-另有 `ab_profile/*` 用 AB index 展示 A/B 范数与形状，并用 `ab_profile/index_map`
+另有 `AB画像/*` 用 AB index 展示 A/B 范数与形状，并用 `AB画像/索引映射`
 记录 index 到 AB 标识的映射。中文字段解释见 [`CSV字段说明.md`](CSV字段说明.md)。
 旧入口仍写入原有 `_res/` 结果文件。
 

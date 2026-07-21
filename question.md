@@ -1769,7 +1769,7 @@ TensorBoard 之前把每个 AB 对都当作独立 tag，导致同一配置下出
 
 可以。AB 不应该进入 TensorBoard tag，而应该进入 step。现在结果指标按 `方法/模式/比例/skeleton` 归并 tag，同一配置下 104 个 AB 会作为同一张图里的 104 个点。
 
-另外新增 `ab_profile/*` 图表，使用 `AB index` 作为横轴，展示：
+另外新增 `AB画像/*` 图表，使用 `AB index` 作为横轴，展示：
 
 - `A/frobenius_norm_mean`；
 - `B/frobenius_norm_mean`；
@@ -1778,7 +1778,26 @@ TensorBoard 之前把每个 AB 对都当作独立 tag，导致同一配置下出
 - `shape/output_dim`；
 - `shape/input_dim`。
 
-`ab_profile/index_map` 以 TensorBoard Text 记录 `AB index -> AB 标识` 的映射；同一映射也写入 `artifacts/ab_profile.csv`。
+`AB画像/索引映射` 以 TensorBoard Text 记录 `AB index -> AB 标识` 的映射；同一映射也写入 `artifacts/ab_profile.csv`。
+
+## Q119：TensorBoard 标签能否全中文？为什么任务墙钟时间明显长于 TensorBoard 分段耗时？
+
+### 回答
+
+可以，TensorBoard tag 已改成中文，例如：
+
+- `耗时/外积/全加密/无比例/带骨架/CUR秒`；
+- `通信/外积/全加密/无比例/带骨架/聚合阶段总网络字节`；
+- `误差/外积/全加密/无比例/带骨架/相对Frobenius误差`；
+- `进度/已处理任务数`。
+
+之前看到一个任务终端耗时约 10 秒，但 TensorBoard 中分段耗时总和不足 5 秒，主要原因是口径不同：
+
+- `客户端加密秒` 是按客户端平均值记录，代码中用总加密墙钟时间除以 `N_CLIENTS`；
+- TensorBoard 只展示加密、服务端聚合、客户端解密、CUR 等分段，不等同于任务墙钟；
+- 任务准备、Python 循环、数据 materialize、通信统计、JSONL/TensorBoard 写入和 flush 等外层开销没有进入这些分段。
+
+现在新增 `耗时/.../任务总耗时秒`，记录单个任务从开始执行到核心结果返回的墙钟耗时；CSV 的 `ab_metrics.csv`、`timing_metrics.csv` 和 `top_timing.csv` 也包含 `任务总耗时秒`。
 
 ## Q118：当前实现还有哪些值得做的优化？
 

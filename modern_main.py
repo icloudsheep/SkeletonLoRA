@@ -70,10 +70,40 @@ def _task_id(identifier, method, mode, ratio, skeleton):
     return "/".join((identifier.text, method, mode, ratio_label, str(int(skeleton))))
 
 
+def _method_label(method):
+    return {
+        "明文参考": "明文参考",
+        "外积": "外积",
+        "内积": "内积",
+    }[method]
+
+
+def _mode_label(mode):
+    return {
+        "plain_baseline": "明文基线",
+        "partial_A": "部分A",
+        "partial_AB": "部分AB",
+        "full": "全加密",
+    }[mode]
+
+
+def _ratio_label(ratio):
+    return "无比例" if ratio is None else f"{ratio}%"
+
+
+def _skeleton_label(skeleton):
+    return "带骨架" if skeleton else "全矩阵"
+
+
 def _tensorboard_prefix(method, mode, ratio, skeleton):
-    ratio_label = "none" if ratio is None else str(ratio)
-    matrix_label = "skeleton" if skeleton else "full_matrix"
-    return "/".join((method, mode, ratio_label, matrix_label))
+    return "/".join(
+        (
+            _method_label(method),
+            _mode_label(mode),
+            _ratio_label(ratio),
+            _skeleton_label(skeleton),
+        )
+    )
 
 
 def _row_base(run_id, identifier, ab_index, method, mode, ratio, skeleton, shape):
@@ -110,6 +140,7 @@ def _result_row(base, result):
             "服务端聚合秒": "N/A",
             "客户端解密秒": "N/A",
             "CUR 秒": "N/A",
+            "任务总耗时秒": "N/A",
             "上传密文字节": "N/A",
             "上传明文字节": "N/A",
             "上传元数据字节": "N/A",
@@ -150,6 +181,7 @@ def _result_row(base, result):
         ("server_seconds", "服务端聚合秒"),
         ("client_decrypt_seconds", "客户端解密秒"),
         ("cur_seconds", "CUR 秒"),
+        ("task_seconds", "任务总耗时秒"),
     ):
         if key in timing:
             row[output_key] = timing[key]
@@ -245,6 +277,7 @@ SUMMARY_COLUMNS = [
     "服务端聚合秒",
     "客户端解密秒",
     "CUR 秒",
+    "任务总耗时秒",
     "上传合计字节",
     "下发合计字节",
     "聚合阶段总网络字节",
@@ -270,6 +303,7 @@ TIMING_COLUMNS = [
     "服务端聚合秒",
     "客户端解密秒",
     "CUR 秒",
+    "任务总耗时秒",
 ]
 
 COMMUNICATION_COLUMNS = [
@@ -434,18 +468,19 @@ def _write_artifacts(paths, rows, context_rows):
     )
     timing_rows = []
     for row in rows:
-        timing_total = sum(
-            _as_number(row.get(column)) or 0
-            for column in ("客户端加密秒", "服务端聚合秒", "客户端解密秒", "CUR 秒")
-        )
+        timing_total = _as_number(row.get("任务总耗时秒"))
+        if timing_total is None:
+            timing_total = sum(
+                _as_number(row.get(column)) or 0
+                for column in ("客户端加密秒", "服务端聚合秒", "客户端解密秒", "CUR 秒")
+            )
         copied = dict(row)
         copied["任务总耗时秒"] = timing_total
         timing_rows.append(copied)
-    timing_columns = [*TIMING_COLUMNS, "任务总耗时秒"]
     _write_csv(
         paths.artifacts / "top_timing.csv",
-        _select_columns(_sort_by_number(timing_rows, "任务总耗时秒")[:20], timing_columns),
-        timing_columns,
+        _select_columns(_sort_by_number(timing_rows, "任务总耗时秒")[:20], TIMING_COLUMNS),
+        TIMING_COLUMNS,
     )
 
 
@@ -480,7 +515,7 @@ def _write_ab_profile(paths, logger, profile_rows):
     if not profile_rows:
         return
     logger.text(
-        "ab_profile/index_map",
+        "AB画像/索引映射",
         json.dumps(
             [
                 {"ab_index": row["AB index"], "identifier": row["层/投影/AB 标识"]}
@@ -494,12 +529,12 @@ def _write_ab_profile(paths, logger, profile_rows):
         ab_index = row["AB index"]
         metric_fields = {"identifier": row["层/投影/AB 标识"]}
         for tag, column in (
-            ("ab_profile/A/frobenius_norm_mean", "A 平均 Frobenius 范数"),
-            ("ab_profile/B/frobenius_norm_mean", "B 平均 Frobenius 范数"),
-            ("ab_profile/A/max_abs_mean", "A 平均最大绝对值"),
-            ("ab_profile/B/max_abs_mean", "B 平均最大绝对值"),
-            ("ab_profile/shape/output_dim", "输出维度"),
-            ("ab_profile/shape/input_dim", "输入维度"),
+            ("AB画像/A/平均Frobenius范数", "A 平均 Frobenius 范数"),
+            ("AB画像/B/平均Frobenius范数", "B 平均 Frobenius 范数"),
+            ("AB画像/A/平均最大绝对值", "A 平均最大绝对值"),
+            ("AB画像/B/平均最大绝对值", "B 平均最大绝对值"),
+            ("AB画像/形状/输出维度", "输出维度"),
+            ("AB画像/形状/输入维度", "输入维度"),
         ):
             logger.scalar(tag, row[column], ab_index, **metric_fields)
     _write_csv(paths.artifacts / "ab_profile.csv", profile_rows)
@@ -586,7 +621,7 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
     write_json(paths.config, config)
     write_json(paths.environment, environment_snapshot())
     logger = RunLogger(paths)
-    logger.text("run/config", json.dumps(config, ensure_ascii=False, indent=2))
+    logger.text("运行/配置", json.dumps(config, ensure_ascii=False, indent=2))
     ab_profile_rows = _ab_profile_rows(identifiers, collections, shapes)
     _write_ab_profile(paths, logger, ab_profile_rows)
     ab_indices = {identifier: index for index, identifier in enumerate(identifiers)}
@@ -650,6 +685,7 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
                         logger.task(task_id, "started")
                         ab_index = ab_indices[identifier]
                         base = _row_base(run_id, identifier, ab_index, method, mode, ratio, skeleton, shape)
+                        task_started = time.perf_counter()
                         try:
                             if mode == "plain_baseline":
                                 result = run_plain_pair(B_list, A_list, N_CLIENTS, SCALING, skeleton, SKELETON_R)
@@ -675,6 +711,9 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
                                     slots,
                                     INNER_FULL_TIME_BUDGET,
                                 )
+                            result.setdefault("timing", {})["task_seconds"] = (
+                                time.perf_counter() - task_started
+                            )
                             rows.append(_result_row(base, result))
                             tag_prefix = _tensorboard_prefix(method, mode, ratio, skeleton)
                             metric_fields = {
@@ -686,14 +725,22 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
                             }
                             if result.get("error"):
                                 logger.scalar(
-                                    f"error/{tag_prefix}/relative_frobenius",
+                                    f"误差/{tag_prefix}/相对Frobenius误差",
                                     result["error"]["relative_frobenius_error"],
                                     ab_index,
                                     **metric_fields,
                                 )
                             for timing_name, value in result.get("timing", {}).items():
+                                timing_tag = {
+                                    "client_encrypt_seconds": "客户端加密秒",
+                                    "server_seconds": "服务端聚合秒",
+                                    "client_decrypt_seconds": "客户端解密秒",
+                                    "cur_seconds": "CUR秒",
+                                    "reference_seconds": "明文参考秒",
+                                    "task_seconds": "任务总耗时秒",
+                                }[timing_name]
                                 logger.scalar(
-                                    f"timing/{tag_prefix}/{timing_name}",
+                                    f"耗时/{tag_prefix}/{timing_tag}",
                                     value,
                                     ab_index,
                                     **metric_fields,
@@ -702,8 +749,14 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
                                 for metric_name, value in result.get(direction, {}).items():
                                     if metric_name == "total_bytes":
                                         continue
+                                    communication_tag = {
+                                        "ciphertext_bytes": "密文字节",
+                                        "plaintext_bytes": "明文字节",
+                                        "metadata_bytes": "元数据字节",
+                                        "payload_bytes": "载荷字节",
+                                    }[metric_name]
                                     logger.metric(
-                                        f"communication/{tag_prefix}/{direction}_{metric_name}",
+                                        f"通信/{tag_prefix}/{direction == 'upload' and '上传' or '下发'}{communication_tag}",
                                         value,
                                         ab_index,
                                         **metric_fields,
@@ -712,21 +765,21 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
                             download_total = result.get("download", {}).get("total_bytes")
                             if upload_total is not None:
                                 logger.scalar(
-                                    f"communication/{tag_prefix}/upload_total_bytes",
+                                    f"通信/{tag_prefix}/上传合计字节",
                                     upload_total,
                                     ab_index,
                                     **metric_fields,
                                 )
                             if download_total is not None:
                                 logger.scalar(
-                                    f"communication/{tag_prefix}/download_total_bytes",
+                                    f"通信/{tag_prefix}/下发合计字节",
                                     download_total,
                                     ab_index,
                                     **metric_fields,
                                 )
                             if upload_total is not None or download_total is not None:
                                 logger.scalar(
-                                    f"communication/{tag_prefix}/network_total_bytes",
+                                    f"通信/{tag_prefix}/聚合阶段总网络字节",
                                     (upload_total or 0) + (download_total or 0),
                                     ab_index,
                                     **metric_fields,
@@ -735,12 +788,15 @@ def run_experiment(use_real=False, dim=None, selected_method=None, selected_mode
                             logger.task(task_id, "completed", feasible=result.get("feasible"), note=result.get("note"))
                         except Exception as exc:
                             result = {"feasible": False, "note": repr(exc)}
+                            result.setdefault("timing", {})["task_seconds"] = (
+                                time.perf_counter() - task_started
+                            )
                             rows.append(_result_row(base, result))
                             failed_tasks += 1
                             logger.task(task_id, "failed", error=repr(exc))
-                        logger.scalar("progress/completed_tasks", completed_tasks, step)
-                        logger.scalar("progress/failed_tasks", failed_tasks, step)
-                        logger.scalar("progress/processed_tasks", completed_tasks + failed_tasks, step)
+                        logger.scalar("进度/已完成任务数", completed_tasks, step)
+                        logger.scalar("进度/失败任务数", failed_tasks, step)
+                        logger.scalar("进度/已处理任务数", completed_tasks + failed_tasks, step)
                         step += 1
                         logger.flush()
     finally:

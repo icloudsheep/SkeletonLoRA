@@ -54,7 +54,7 @@
 | `实际 skeleton rank` | 整数 | `min(skeleton rank, N_CLIENTS × rank)` |
 | `输出维度` | 整数 | B 的行数 |
 | `输入维度` | 整数 | A 的列数 |
-| `AB index` | 整数 | TensorBoard `ab_profile/*` 图表使用的横轴位置 |
+| `AB index` | 整数 | TensorBoard `AB画像/*` 和结果指标图表使用的横轴位置 |
 | `CKKS 多项式次数` | 整数 | `poly_modulus_degree` |
 | `CKKS 槽位数` | 整数 | `poly_modulus_degree / 2` |
 
