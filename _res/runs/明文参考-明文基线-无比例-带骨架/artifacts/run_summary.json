@@ -1,0 +1,15 @@
+{
+  "run_id": "20260721-191047-real-d3200-plain-plain_baseline-none-skeleton",
+  "total_tasks": 104,
+  "feasibility": {
+    "可行": 104
+  },
+  "precision_status": {
+    "正常": 104
+  },
+  "max_relative_frobenius_error": 5.618173849274203e-10,
+  "max_upload_total_bytes": null,
+  "max_download_total_bytes": null,
+  "max_network_total_bytes": null,
+  "context_count": 0
+}

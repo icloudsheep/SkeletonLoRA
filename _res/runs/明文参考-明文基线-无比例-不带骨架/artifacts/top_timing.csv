@@ -1,0 +1,21 @@
+﻿运行 ID,AB index,层/投影/AB 标识,方法,实验模式,部分加密比例,骨架优化,输出维度,输入维度,可行性,精度状态,备注,客户端加密秒,服务端聚合秒,客户端解密秒,CUR 秒,任务总耗时秒
+20260721-191247-real-d3200-plain-plain_baseline-none-full,57,base_model.model.model.layers.21.self_attn.o_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,1.0446270741522312
+20260721-191247-real-d3200-plain-plain_baseline-none-full,80,base_model.model.model.layers.4.self_attn.k_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.9510281756520271
+20260721-191247-real-d3200-plain-plain_baseline-none-full,82,base_model.model.model.layers.4.self_attn.q_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.889149509370327
+20260721-191247-real-d3200-plain-plain_baseline-none-full,36,base_model.model.model.layers.17.self_attn.k_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.8854083865880966
+20260721-191247-real-d3200-plain-plain_baseline-none-full,81,base_model.model.model.layers.4.self_attn.o_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.8569968640804291
+20260721-191247-real-d3200-plain-plain_baseline-none-full,35,base_model.model.model.layers.16.self_attn.v_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.7933916933834553
+20260721-191247-real-d3200-plain-plain_baseline-none-full,79,base_model.model.model.layers.3.self_attn.v_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.7827832214534283
+20260721-191247-real-d3200-plain-plain_baseline-none-full,4,base_model.model.model.layers.1.self_attn.k_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.7115887627005577
+20260721-191247-real-d3200-plain-plain_baseline-none-full,8,base_model.model.model.layers.10.self_attn.k_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.7097185589373112
+20260721-191247-real-d3200-plain-plain_baseline-none-full,7,base_model.model.model.layers.1.self_attn.v_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.7080772258341312
+20260721-191247-real-d3200-plain-plain_baseline-none-full,9,base_model.model.model.layers.10.self_attn.o_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.70230583101511
+20260721-191247-real-d3200-plain-plain_baseline-none-full,6,base_model.model.model.layers.1.self_attn.q_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.7000737302005291
+20260721-191247-real-d3200-plain-plain_baseline-none-full,5,base_model.model.model.layers.1.self_attn.o_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6985619515180588
+20260721-191247-real-d3200-plain-plain_baseline-none-full,23,base_model.model.model.layers.13.self_attn.v_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6967488266527653
+20260721-191247-real-d3200-plain-plain_baseline-none-full,0,base_model.model.model.layers.0.self_attn.k_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6903478130698204
+20260721-191247-real-d3200-plain-plain_baseline-none-full,22,base_model.model.model.layers.13.self_attn.q_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6881392039358616
+20260721-191247-real-d3200-plain-plain_baseline-none-full,50,base_model.model.model.layers.2.self_attn.q_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6874296553432941
+20260721-191247-real-d3200-plain-plain_baseline-none-full,20,base_model.model.model.layers.13.self_attn.k_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6873767301440239
+20260721-191247-real-d3200-plain-plain_baseline-none-full,19,base_model.model.model.layers.12.self_attn.v_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6845493614673615
+20260721-191247-real-d3200-plain-plain_baseline-none-full,18,base_model.model.model.layers.12.self_attn.q_proj.lora.default,明文参考,plain_baseline,N/A,关,3200,3200,可行,正常,纯明文参考,N/A,N/A,N/A,0.0,0.6823034062981606

@@ -1,0 +1,7 @@
+{"task_id": "base_model.model.model.layers.0.self_attn.k_proj.lora.default/内积/partial_A/1/1", "status": "started"}
+{"task_id": "base_model.model.model.layers.0.self_attn.k_proj.lora.default/内积/partial_A/1/1", "status": "completed", "feasible": true, "note": "内积 CKKS skeleton"}
+{"task_id": "base_model.model.model.layers.0.self_attn.o_proj.lora.default/内积/partial_A/1/1", "status": "started"}
+{"task_id": "base_model.model.model.layers.0.self_attn.o_proj.lora.default/内积/partial_A/1/1", "status": "completed", "feasible": true, "note": "内积 CKKS skeleton"}
+{"task_id": "base_model.model.model.layers.0.self_attn.q_proj.lora.default/内积/partial_A/1/1", "status": "started"}
+{"task_id": "base_model.model.model.layers.0.self_attn.q_proj.lora.default/内积/partial_A/1/1", "status": "completed", "feasible": true, "note": "内积 CKKS skeleton"}
+{"task_id": "base_model.model.model.layers.0.self_attn.v_proj.lora.default/内积/partial_A/1/1", "status": "started"}

@@ -1,0 +1,17 @@
+{
+  "run_id": "20260721-181805-real-d3200",
+  "total_tasks": 104,
+  "feasibility": {
+    "可行": 104
+  },
+  "precision_status": {
+    "正常": 47,
+    "warning": 56,
+    "failure": 1
+  },
+  "max_relative_frobenius_error": 0.6195608220095989,
+  "max_upload_total_bytes": 322674991.0,
+  "max_download_total_bytes": 4371582.0,
+  "max_network_total_bytes": 327046573.0,
+  "context_count": 1
+}

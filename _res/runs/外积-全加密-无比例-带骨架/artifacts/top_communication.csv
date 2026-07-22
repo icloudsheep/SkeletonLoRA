@@ -1,0 +1,21 @@
+﻿运行 ID,AB index,层/投影/AB 标识,方法,实验模式,部分加密比例,骨架优化,输出维度,输入维度,可行性,精度状态,备注,上传密文字节,上传明文字节,上传元数据字节,上传合计字节,下发密文字节,下发明文字节,下发元数据字节,下发合计字节,聚合阶段总网络字节
+20260721-181805-real-d3200,59,base_model.model.model.layers.21.self_attn.v_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320934703,0,1740288,322674991,3936510,0,435072,4371582,327046573.0
+20260721-181805-real-d3200,65,base_model.model.model.layers.23.self_attn.o_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320934321,0,1740288,322674609,3936510,0,435072,4371582,327046191.0
+20260721-181805-real-d3200,96,base_model.model.model.layers.8.self_attn.k_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320932959,0,1740288,322673247,3936510,0,435072,4371582,327044829.0
+20260721-181805-real-d3200,44,base_model.model.model.layers.19.self_attn.k_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320932288,0,1740288,322672576,3936510,0,435072,4371582,327044158.0
+20260721-181805-real-d3200,70,base_model.model.model.layers.24.self_attn.q_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320931025,0,1740288,322671313,3936510,0,435072,4371582,327042895.0
+20260721-181805-real-d3200,27,base_model.model.model.layers.14.self_attn.v_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320930666,0,1740288,322670954,3936510,0,435072,4371582,327042536.0
+20260721-181805-real-d3200,53,base_model.model.model.layers.20.self_attn.o_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320929066,0,1740288,322669354,3936510,0,435072,4371582,327040936.0
+20260721-181805-real-d3200,17,base_model.model.model.layers.12.self_attn.o_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320928851,0,1740288,322669139,3936510,0,435072,4371582,327040721.0
+20260721-181805-real-d3200,15,base_model.model.model.layers.11.self_attn.v_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320928568,0,1740288,322668856,3936510,0,435072,4371582,327040438.0
+20260721-181805-real-d3200,46,base_model.model.model.layers.19.self_attn.q_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320928183,0,1740288,322668471,3936510,0,435072,4371582,327040053.0
+20260721-181805-real-d3200,94,base_model.model.model.layers.7.self_attn.q_proj.lora.default,外积,full,N/A,开,3200,3200,可行,failure,外积 CKKS skeleton,320926762,0,1740288,322667050,3936510,0,435072,4371582,327038632.0
+20260721-181805-real-d3200,9,base_model.model.model.layers.10.self_attn.o_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320926739,0,1740288,322667027,3936510,0,435072,4371582,327038609.0
+20260721-181805-real-d3200,22,base_model.model.model.layers.13.self_attn.q_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320926348,0,1740288,322666636,3936510,0,435072,4371582,327038218.0
+20260721-181805-real-d3200,101,base_model.model.model.layers.9.self_attn.o_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320926123,0,1740288,322666411,3936510,0,435072,4371582,327037993.0
+20260721-181805-real-d3200,61,base_model.model.model.layers.22.self_attn.o_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320926113,0,1740288,322666401,3936510,0,435072,4371582,327037983.0
+20260721-181805-real-d3200,28,base_model.model.model.layers.15.self_attn.k_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320925812,0,1740288,322666100,3936510,0,435072,4371582,327037682.0
+20260721-181805-real-d3200,19,base_model.model.model.layers.12.self_attn.v_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320925403,0,1740288,322665691,3936510,0,435072,4371582,327037273.0
+20260721-181805-real-d3200,47,base_model.model.model.layers.19.self_attn.v_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320925320,0,1740288,322665608,3936510,0,435072,4371582,327037190.0
+20260721-181805-real-d3200,81,base_model.model.model.layers.4.self_attn.o_proj.lora.default,外积,full,N/A,开,3200,3200,可行,warning,外积 CKKS skeleton,320925155,0,1740288,322665443,3936510,0,435072,4371582,327037025.0
+20260721-181805-real-d3200,95,base_model.model.model.layers.7.self_attn.v_proj.lora.default,外积,full,N/A,开,3200,3200,可行,正常,外积 CKKS skeleton,320924965,0,1740288,322665253,3936510,0,435072,4371582,327036835.0

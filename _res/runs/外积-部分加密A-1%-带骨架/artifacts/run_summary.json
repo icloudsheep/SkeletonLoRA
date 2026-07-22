@@ -1,0 +1,16 @@
+{
+  "run_id": "20260721-194541-real-d3200-outer-partial_A-ratio1-skeleton",
+  "total_tasks": 104,
+  "feasibility": {
+    "可行": 104
+  },
+  "precision_status": {
+    "正常": 86,
+    "warning": 18
+  },
+  "max_relative_frobenius_error": 0.024381187819303676,
+  "max_upload_total_bytes": 43467043.0,
+  "max_download_total_bytes": 1616562.0,
+  "max_network_total_bytes": 45083605.0,
+  "context_count": 1
+}

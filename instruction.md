@@ -55,61 +55,61 @@ tail -f real_experiments.log
 
 ## 单项 real 实验命令
 
-### 明文参考-无比例-不带骨架
+### 明文参考-无比例-不带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 明文参考 --mode plain_baseline --skeleton false
 ```
 
-### 明文参考-无比例-带骨架
+### 明文参考-无比例-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 明文参考 --mode plain_baseline --skeleton true
 ```
 
-### 外积-全加密-无比例-不带骨架
+### 外积-全加密-无比例-不带骨架 ⌛️0
 
 ```shell
 python modern_main.py --real true --method 外积 --mode full --skeleton false
 ```
 
-### 外积-全加密-无比例-带骨架
+### 外积-全加密-无比例-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode full --skeleton true
 ```
 
-### 外积-部分加密A-1%-不带骨架
+### 外积-部分加密A-1%-不带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_A --ratio 1 --skeleton false
 ```
 
-### 外积-部分加密A-1%-带骨架
+### 外积-部分加密A-1%-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_A --ratio 1 --skeleton true
 ```
 
-### 外积-部分加密A-5%-不带骨架
+### 外积-部分加密A-5%-不带骨架 ⌛️5
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_A --ratio 5 --skeleton false
 ```
 
-### 外积-部分加密A-5%-带骨架
+### 外积-部分加密A-5%-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_A --ratio 5 --skeleton true
 ```
 
-### 外积-部分加密A-25%-不带骨架
+### 外积-部分加密A-25%-不带骨架 ⌛️2
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_A --ratio 25 --skeleton false
 ```
 
-### 外积-部分加密A-25%-带骨架
+### 外积-部分加密A-25%-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_A --ratio 25 --skeleton true
@@ -127,37 +127,37 @@ python modern_main.py --real true --method 外积 --mode partial_A --ratio 50 --
 python modern_main.py --real true --method 外积 --mode partial_A --ratio 50 --skeleton true
 ```
 
-### 外积-部分加密AB-1%-不带骨架
+### 外积-部分加密AB-1%-不带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_AB --ratio 1 --skeleton false
 ```
 
-### 外积-部分加密AB-1%-带骨架
+### 外积-部分加密AB-1%-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_AB --ratio 1 --skeleton true
 ```
 
-### 外积-部分加密AB-5%-不带骨架
+### 外积-部分加密AB-5%-不带骨架 ⌛️3
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_AB --ratio 5 --skeleton false
 ```
 
-### 外积-部分加密AB-5%-带骨架
+### 外积-部分加密AB-5%-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_AB --ratio 5 --skeleton true
 ```
 
-### 外积-部分加密AB-25%-不带骨架
+### 外积-部分加密AB-25%-不带骨架 ⌛️2
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_AB --ratio 25 --skeleton false
 ```
 
-### 外积-部分加密AB-25%-带骨架
+### 外积-部分加密AB-25%-带骨架 ✅
 
 ```shell
 python modern_main.py --real true --method 外积 --mode partial_AB --ratio 25 --skeleton true
@@ -175,25 +175,25 @@ python modern_main.py --real true --method 外积 --mode partial_AB --ratio 50 -
 python modern_main.py --real true --method 外积 --mode partial_AB --ratio 50 --skeleton true
 ```
 
-### 内积-全加密-无比例-不带骨架
+### 内积-全加密-无比例-不带骨架 ❌
 
 ```shell
 python modern_main.py --real true --method 内积 --mode full --skeleton false
 ```
 
-### 内积-全加密-无比例-带骨架
+### 内积-全加密-无比例-带骨架 ⌛️0
 
 ```shell
 python modern_main.py --real true --method 内积 --mode full --skeleton true
 ```
 
-### 内积-部分加密A-1%-不带骨架
+### 内积-部分加密A-1%-不带骨架 ⌛️1
 
 ```shell
 python modern_main.py --real true --method 内积 --mode partial_A --ratio 1 --skeleton false
 ```
 
-### 内积-部分加密A-1%-带骨架
+### 内积-部分加密A-1%-带骨架 ⌛️3
 
 ```shell
 python modern_main.py --real true --method 内积 --mode partial_A --ratio 1 --skeleton true

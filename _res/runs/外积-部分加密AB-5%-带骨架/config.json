@@ -1,0 +1,41 @@
+{
+  "use_real": true,
+  "dim": 64,
+  "max_dim": 3200,
+  "n_clients": 4,
+  "rank": 4,
+  "lora_alpha": 8,
+  "scaling": 2.0,
+  "skeleton_r": 16,
+  "poly_modulus_degree": 8192,
+  "coeff_mod_bit_sizes": [
+    60,
+    40,
+    40,
+    60
+  ],
+  "global_scale": 1099511627776,
+  "methods": [
+    "外积",
+    "内积"
+  ],
+  "modes": [
+    "plain_baseline",
+    "partial_A",
+    "partial_AB",
+    "full"
+  ],
+  "partial_ratios": [
+    1,
+    5,
+    25,
+    50
+  ],
+  "warnings": [],
+  "case": {
+    "method": "外积",
+    "mode": "partial_AB",
+    "ratio": 5,
+    "skeleton": true
+  }
+}

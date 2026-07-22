@@ -1,0 +1,15 @@
+{
+  "run_id": "20260721-192828-real-d3200-outer-partial_A-ratio1-full",
+  "total_tasks": 104,
+  "feasibility": {
+    "可行": 104
+  },
+  "precision_status": {
+    "正常": 104
+  },
+  "max_relative_frobenius_error": 2.9237072185225895e-06,
+  "max_upload_total_bytes": 3107281282.0,
+  "max_download_total_bytes": 167245344.0,
+  "max_network_total_bytes": 3274526626.0,
+  "context_count": 1
+}

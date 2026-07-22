@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-07-21T19:28:28.914929+08:00",
+  "platform": "Linux-5.15.0-119-generic-x86_64-with-glibc2.35",
+  "python": "3.10.20",
+  "cpu": "x86_64",
+  "cpu_count": 208,
+  "memory_bytes": 810154868736,
+  "environment_variables": {
+    "OMP_NUM_THREADS": "25",
+    "MKL_NUM_THREADS": "25"
+  },
+  "versions": {
+    "numpy": "2.2.6",
+    "tenseal": "0.3.16",
+    "safetensors": "0.8.0",
+    "tensorboard": "2.21.0"
+  },
+  "git": {
+    "commit": "769bed6cc0a52a457db59e90d3cc47e255cd2fff",
+    "dirty": true
+  }
+}

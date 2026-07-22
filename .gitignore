@@ -15,6 +15,8 @@ __pycache__/
 # conda
 *.egg-info/
 
-# 实验产物：当前结果 _res/ 入库供查阅；上一版残留 _res_old/ 不入库
-_res_old/
-_res/runs/
+# 实验产物：当前结果 _res/ 入库供查阅；上一版残留 _res_old/ 均入库保存
+
+
+# 其他文件
+__MACOSX/
